@@ -38,11 +38,13 @@ def get_handles(conn = None):
     query = conn.cursor()
     for handle in query.execute('SELECT ROWID, id, country, service, '
             'uncanonicalized_id FROM handle'):
-        handles[handle[0]] = dict(handle_rowid            = handle[0],
-                                  contact                 = handle[1],
-                                  country                 = handle[2],
-                                  service                 = handle[3],
-                                  uncanonicalized_contact = handle[4]);
+        handles[handle[0]] = dict(
+            handle_rowid            = handle[0],
+            contact                 = handle[1],
+            country                 = handle[2],
+            service                 = handle[3],
+            uncanonicalized_contact = handle[4]
+            )
     return handles;
 
 def get_chats(conn = None):
@@ -50,14 +52,17 @@ def get_chats(conn = None):
     chats = dict()
     query = conn.cursor()
     for chat in query.execute('SELECT ROWID, guid, chat_identifier, '
-            'service_name, room_name, group_id FROM chat'):
-        chats[chat[0]] = dict(handle_rowid    = chat[0],
-                              guid            = chat[1],
-                              chat_identifier = chat[2],
-                              service         = chat[3],
-                              room            = chat[4],
-                              group_id        = chat[5],
-                              handles         = []);
+            'service_name, room_name, group_id, last_addressed_handle FROM chat'):
+        chats[chat[0]] = dict(
+            handle_rowid          = chat[0],
+            guid                  = chat[1],
+            chat_identifier       = chat[2],
+            service               = chat[3],
+            room                  = chat[4],
+            group_id              = chat[5],
+            last_addressed_handle = chat[6],
+            handles               = []
+            )
 
     handles = get_handles(conn)
     for chat_handle in query.execute('SELECT chat_id, handle_id FROM chat_handle_join'):
@@ -70,14 +75,16 @@ def get_attachments(conn = None):
     query = conn.cursor()
     for afile in query.execute('SELECT ROWID, guid, created_date, start_date, '
             'filename, mime_type, transfer_name, total_bytes FROM attachment'):
-        afiles[afile[0]] = dict(attachment_rowid    = afile[0],
-                                guid                = afile[1],
-                                created_date        = afile[2] + date_epoch,
-                                start_date          = afile[3] + date_epoch,
-                                filename            = os.path.expanduser(afile[4]),
-                                mime_type           = afile[5],
-                                transfer_name       = afile[6],
-                                total_bytes         = afile[7])
+        afiles[afile[0]] = dict(
+            attachment_rowid    = afile[0],
+            guid                = afile[1],
+            created_date        = afile[2] + date_epoch,
+            start_date          = afile[3] + date_epoch,
+            filename            = os.path.expanduser(afile[4]),
+            mime_type           = afile[5],
+            transfer_name       = afile[6],
+            total_bytes         = afile[7]
+            )
     return afiles
 
 def get_messages(conn = None):
