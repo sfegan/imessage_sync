@@ -1,4 +1,4 @@
-# imessage_reader.py - Read messages from iMessage under Mac OS
+# imessage_db_reader.py - Read messages from iMessage under Mac OS
 #
 # Stephen Fegan - sfegan@gmail.com - 2017-02-27
 #

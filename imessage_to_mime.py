@@ -30,6 +30,10 @@ import email.encoders
 import email
 #import BytesIO
 
+Xheader_base = 'X-imessagesync-'
+def Xheader(ext): return Xheader_base + ext
+Xheader_guid = Xheader('guid')
+
 def get_handle_name(handle, addressbook):
     name = addressbook.lookup_name(handle)
     if(name is None):
@@ -132,28 +136,28 @@ def get_email(message, addressbook):
     outer['Date']       = email.utils.formatdate(message['date'])
     outer['Message-ID'] = get_message_id(message['guid'])
     if(message['chat'].get('_last_message_id')):
-        outer['In-Reply-To']                   = \
+        outer['In-Reply-To']             = \
             get_message_id(message['chat']['_last_message_id'])
     if(message['chat'].get('_first_message_id')):
-        outer['References']                    = \
+        outer['References']              = \
             get_message_id(message['chat']['_first_message_id']) + ' ' + \
             get_message_id(message['chat']['_last_message_id'])
-    outer['X-imessagesync-guid']               = message['guid']
-    outer['X-imessagesync-chat-guid']          = message['chat']['guid']
-    outer['X-imessagesync-chat-contacts']      = \
+    outer[Xheader_base_guid]             = message['guid']
+    outer[Xheader('chat-guid')]          = message['chat']['guid']
+    outer[Xheader('chat-contacts')]      = \
         ' '.join(map(lambda h: h['contact'], message['chat']['handles']))
     if(message.get('account')):
-        outer['X-imessagesync-account']        = message['account']
+        outer[Xheader('account')]        = message['account']
     if(message['is_delivered']):
-        outer['X-imessagesync-date-delivered'] = \
+        outer[Xheader('date-delivered')] = \
             email.utils.formatdate(message['date_delivered'])
     if(message['is_read']):
-        outer['X-imessagesync-date-read']      = \
+        outer[Xheader('date-read')]      = \
             email.utils.formatdate(message['date_read'])
     if(message['handle']):
-        outer['X-imessagesync-handle-contact'] = message['handle']['contact']
-        outer['X-imessagesync-handle-country'] = message['handle']['country']
-        outer['X-imessagesync-handle-service'] = message['handle']['service']
+        outer[Xheader('handle-contact')] = message['handle']['contact']
+        outer[Xheader('handle-country')] = message['handle']['country']
+        outer[Xheader('handle-service')] = message['handle']['service']
     outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
     outer.attach(get_text_msg(message))
     for a in message['attachments']:

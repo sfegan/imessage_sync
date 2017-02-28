@@ -1,4 +1,4 @@
-# imessage_to_gmail.py - Backup messages from iMessage under Mac OS to GMail
+# imessage_sync.py - Backup messages from iMessage under Mac OS to IMAP
 #
 # Stephen Fegan - sfegan@gmail.com - 2017-01-06
 #
@@ -53,15 +53,21 @@ class IMessageSync:
         i = 0
         guids = set()
         while(True):
-            resp, data = self.connection.fetch('%d:%d'%(i,i+block_size-1),
-                'BODY.PEEK[HEADER.FIELDS (X-imessagesync-guid)]')
+            qrange = '%d:%d'%(i+1,i+block_size)
+            qfilter = 'BODY.PEEK[HEADER.FIELDS (%s)]'%imessage_to_mime.Xheader_guid
+            #print(qrange, qfilter)
+            resp, data = self.connection.fetch(qrange, qfilter)
+            #print (resp, len(data))
             if(resp != 'OK'):
                 print(resp, data[0].decode())
                 return None
+            if(data == [None]):
+                break
             for line in data:
                 if(type(line) == tuple):
-                    guid = re.match(r'^.*:\s+([^\s]*)\s*$',line[1].decode()).groups()
-                    guids.add(guid)
+                    guid = re.match(r'^.*:\s+([^\s]*)\s*$',line[1].decode())
+                    if(guid):
+                        guids.add(guid.groups()[0])
             i += block_size
         return guids
 
