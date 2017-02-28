@@ -21,8 +21,7 @@ def open_connection(verbose=False):
     if verbose:
         print('Logging in as', username)
     connection.login(username, password)
-    return connection
-
+    return connection, config.get('account', 'identity')
 
 if __name__ == '__main__':
     c = open_connection(verbose=True)
