@@ -1,4 +1,4 @@
-# imessage_reader.py - Backup messages from iMessage under Mac OS to GMail
+# imessage_reader.py - Read messages from iMessage under Mac OS
 #
 # Stephen Fegan - sfegan@gmail.com - 2017-02-27
 #
@@ -25,10 +25,10 @@ import os
 
 date_epoch = 978307200
 
-def get_conn(conn = None):
+def get_conn(conn = None, chat_db = '~/Library/Messages/chat.db'):
     if(conn is None):
         conn = sqlite3.connect('file:'
-            + os.path.expanduser('~/Library/Messages/chat.db')
+            + os.path.expanduser(chat_db)
             + '?mode=ro', uri=True)
     return conn
 
