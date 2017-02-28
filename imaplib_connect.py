@@ -4,10 +4,10 @@ import imaplib
 import configparser
 import os
 
-def open_connection(verbose=False):
+def open_connection(verbose=False, credentials='~/.imessage_sync'):
     # Read the config file
     config = configparser.ConfigParser()
-    config.read([os.path.expanduser('~/.imessage_to_gmail')])
+    config.read([os.path.expanduser(credentials)])
 
     # Connect to the server
     hostname = config.get('server', 'hostname')

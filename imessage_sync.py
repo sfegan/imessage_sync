@@ -19,3 +19,73 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import imaplib
+import imaplib_connect
+import imessage_to_mime
+import re
+
+class IMessageSync:
+    def __init__(self, connection, addressbook, mailbox='iMessage', verbose=False):
+        self.connection   = connection
+        self.addresssbook = addressbook
+        self.mailbox      = mailbox
+        self.verbose      = verbose
+
+    def mailbox_size(self):
+        resp, data = self.connection.status('iMessage','(MESSAGES)')
+        if(resp != 'OK'):
+            return None
+        mb, el, n = re.match(r'"(.*)" \((.*) (.*)\)',data[0].decode()).groups()
+        return int(n)
+
+    def connect_to_mailbox(self):
+        resp, data = self.connection.create(self.mailbox)
+        resp, data = self.connection.select(self.mailbox)
+        if(resp != 'OK'):
+            print(b.decode())
+            return False
+        return True
+
+    def fetch_all_guids(self, block_size=1000):
+        if(not self.connect_to_mailbox()):
+            return None
+        i = 0
+        guids = set()
+        while(True):
+            resp, data = self.connection.fetch('%d:%d'%(i,i+block_size-1),
+                'BODY.PEEK[HEADER.FIELDS (X-imessagesync-guid)]')
+            if(resp != 'OK'):
+                print(resp, data[0].decode())
+                return None
+            for line in data:
+                if(type(line) == tuple):
+                    guid = re.match(r'^.*:\s+([^\s]*)\s*$',line[1].decode()).groups()
+                    guids.add(guid)
+            i += block_size
+        return guids
+
+    def upload_message(self, message):
+        email_msg = imessage_to_mime.get_email(message, self.addressbook)
+        email_str = email_msg.as_bytes()
+        if self.verbose:
+            to_from = 'from'
+            print('Uploading message %s %s, index: %d, size: %d'%( \
+                'to' if message['is_from_me'] else 'from',
+                message['handle']['contact'] if message.get('handle') else 'unknown',
+                message['message_rowid'],
+                len(email_str)))
+        resp, data = connection.append(mailbox,
+            '(\\Seen)' if message['is_read'] else None,
+            imaplib.Time2Internaldate(message['date']), email_str)
+        if self.verbose:
+            print('  ',resp,data)
+        return resp == 'OK'
+
+    def upload_all_messages(self, messages):
+        for id in messages.keys():
+            message = messages[id]
+            if(not imessage_to_mime.is_valid(message)):
+                continue
+            upload_message(message)
+            imessage_to_mime.update_chat_thread_ids(message)

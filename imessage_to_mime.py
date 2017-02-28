@@ -26,6 +26,7 @@ import email.mime.image
 import email.mime.audio
 import email.mime.multipart
 import email.utils
+import email.encoders
 import email
 #import BytesIO
 
@@ -47,7 +48,7 @@ def get_subject(message, addressbook):
     if(message['subject']):
         return message['subject']
     else:
-        return message['service'] + ' with ' \
+        return message['chat']['service'] + ' with ' \
             + get_chat_names(message['chat'], addressbook)
 
 def get_from(message, addressbook):
@@ -79,7 +80,7 @@ def get_to(message, addressbook):
     pass
 
 def get_message_id(guid):
-    return '<'+guid+'@imessage_to_gmail.local>'
+    return '<'+guid+'@imessage_sync.local>'
 
 def get_text_msg(message):
 	return email.mime.text.MIMEText(message['text'])
@@ -106,7 +107,7 @@ def get_attachment_msg(attachment):
         msg.set_payload(fp.read())
         fp.close()
         # Encode the payload using Base64
-        encoders.encode_base64(msg)
+        email.encoders.encode_base64(msg)
     if(attachment.get('transfer_name') and attachment.get('created_date')):
         msg.add_header('Content-Disposition', 'attachment',
             creation_date=email.utils.formatdate(attachment['created_date']),
@@ -119,6 +120,10 @@ def get_attachment_msg(attachment):
             creation_date=email.utils.formatdate(attachment['created_date']))
     return msg
 
+def is_valid(message):
+    return message.get('chat') and message['chat']['handles'] \
+        and (message.get('handle') or message.get('other_handle'))
+
 def get_email(message, addressbook):
     outer = email.mime.multipart.MIMEMultipart()
     outer['Subject']    = get_subject(message, addressbook)
@@ -127,23 +132,23 @@ def get_email(message, addressbook):
     outer['Date']       = email.utils.formatdate(message['date'])
     outer['Message-ID'] = get_message_id(message['guid'])
     if(message['chat'].get('_last_message_id')):
-        outer['In-Reply-To'] = \
+        outer['In-Reply-To']                   = \
             get_message_id(message['chat']['_last_message_id'])
     if(message['chat'].get('_first_message_id')):
-        outer['References'] = \
+        outer['References']                    = \
             get_message_id(message['chat']['_first_message_id']) + ' ' + \
             get_message_id(message['chat']['_last_message_id'])
-    outer['X-imessagesync-guid'] = message['guid']
-    outer['X-imessagesync-chat-guid'] = message['chat']['guid']
-    outer['X-imessagesync-chat-contacts'] = \
+    outer['X-imessagesync-guid']               = message['guid']
+    outer['X-imessagesync-chat-guid']          = message['chat']['guid']
+    outer['X-imessagesync-chat-contacts']      = \
         ' '.join(map(lambda h: h['contact'], message['chat']['handles']))
     if(message.get('account')):
-        outer['X-imessagesync-account']   = message['account']
+        outer['X-imessagesync-account']        = message['account']
     if(message['is_delivered']):
         outer['X-imessagesync-date-delivered'] = \
             email.utils.formatdate(message['date_delivered'])
     if(message['is_read']):
-        outer['X-imessagesync-date-read'] = \
+        outer['X-imessagesync-date-read']      = \
             email.utils.formatdate(message['date_read'])
     if(message['handle']):
         outer['X-imessagesync-handle-contact'] = message['handle']['contact']
@@ -154,3 +159,8 @@ def get_email(message, addressbook):
     for a in message['attachments']:
         outer.attach(get_attachment_msg(a))
     return outer
+
+def update_chat_thread_ids(message):
+    message['chat']['_last_message_id'] = message['guid']
+    if(message['chat'].get('_first_message_id') is None):
+        message['chat']['_first_message_id'] = message['guid']
