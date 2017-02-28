@@ -128,8 +128,7 @@ def is_valid(message):
     return message.get('chat') and message['chat']['handles'] \
         and (message.get('handle') or message.get('other_handle'))
 
-def get_email(message, addressbook):
-    outer = email.mime.multipart.MIMEMultipart()
+def set_headers(outer, message, addressbook):
     outer['Subject']    = get_subject(message, addressbook)
     outer['To']         = get_to(message, addressbook)
     outer['From']       = get_from(message, addressbook)
@@ -142,7 +141,7 @@ def get_email(message, addressbook):
         outer['References']              = \
             get_message_id(message['chat']['_first_message_id']) + ' ' + \
             get_message_id(message['chat']['_last_message_id'])
-    outer[Xheader_base_guid]             = message['guid']
+    outer[Xheader_guid]                  = message['guid']
     outer[Xheader('chat-guid')]          = message['chat']['guid']
     outer[Xheader('chat-contacts')]      = \
         ' '.join(map(lambda h: h['contact'], message['chat']['handles']))
@@ -158,10 +157,18 @@ def get_email(message, addressbook):
         outer[Xheader('handle-contact')] = message['handle']['contact']
         outer[Xheader('handle-country')] = message['handle']['country']
         outer[Xheader('handle-service')] = message['handle']['service']
-    outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
-    outer.attach(get_text_msg(message))
-    for a in message['attachments']:
-        outer.attach(get_attachment_msg(a))
+
+def get_email(message, addressbook):
+    if(message['attachments']):
+        outer = email.mime.multipart.MIMEMultipart()
+        set_headers(outer, message, addressbook)
+        outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
+        outer.attach(get_text_msg(message))
+        for a in message['attachments']:
+            outer.attach(get_attachment_msg(a))
+    else:
+        outer = get_text_msg(message)
+        set_headers(outer, message, addressbook)
     return outer
 
 def update_chat_thread_ids(message):

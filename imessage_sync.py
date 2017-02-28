@@ -28,7 +28,7 @@ import re
 class IMessageSync:
     def __init__(self, connection, addressbook, mailbox='iMessage', verbose=False):
         self.connection   = connection
-        self.addresssbook = addressbook
+        self.addressbook  = addressbook
         self.mailbox      = mailbox
         self.verbose      = verbose
 
@@ -81,7 +81,7 @@ class IMessageSync:
                 message['handle']['contact'] if message.get('handle') else 'unknown',
                 message['message_rowid'],
                 len(email_str)))
-        resp, data = connection.append(mailbox,
+        resp, data = self.connection.append(self.mailbox,
             '(\\Seen)' if message['is_read'] else None,
             imaplib.Time2Internaldate(message['date']), email_str)
         if self.verbose:
@@ -93,5 +93,5 @@ class IMessageSync:
             message = messages[id]
             if(not imessage_to_mime.is_valid(message)):
                 continue
-            upload_message(message)
+            self.upload_message(message)
             imessage_to_mime.update_chat_thread_ids(message)
