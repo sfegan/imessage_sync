@@ -1,3 +1,3 @@
-# imessage_to_gmail
+# imessage_sync
 
-Backup messages from iMessage under Mac OS to GMail
+Backup messages from iMessage under Mac OS to mail via IMAP

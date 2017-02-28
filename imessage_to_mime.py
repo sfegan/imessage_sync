@@ -22,6 +22,8 @@
 
 import email.mime.base
 import email.mime.text
+import email.mime.image
+import email.mime.audio
 import email.mime.multipart
 import email.utils
 import email
@@ -42,9 +44,11 @@ def get_chat_names(chat, addressbook):
     return s
 
 def get_subject(message, addressbook):
-    s = message['service'] + ' with ' \
-        + get_chat_names(message['chat'], addressbook)
-    return s
+    if(message['subject']):
+        return message['subject']
+    else:
+        return message['service'] + ' with ' \
+            + get_chat_names(message['chat'], addressbook)
 
 def get_from(message, addressbook):
     if(message['is_from_me']):
@@ -80,6 +84,41 @@ def get_message_id(guid):
 def get_text_msg(message):
 	return email.mime.text.MIMEText(message['text'])
 
+def get_attachment_msg(attachment):
+    maintype, subtype = attachment['mime_type'].split('/')
+    path = attachment['filename']
+    if maintype == 'text':
+        fp = open(path)
+        # Note: we should handle calculating the charset
+        msg = email.mime.text.MIMEText(fp.read(), _subtype=subtype)
+        fp.close()
+    elif maintype == 'image':
+        fp = open(path, 'rb')
+        msg = email.mime.image.MIMEImage(fp.read(), _subtype=subtype)
+        fp.close()
+    elif maintype == 'audio':
+        fp = open(path, 'rb')
+        msg = email.mime.audio.MIMEAudio(fp.read(), _subtype=subtype)
+        fp.close()
+    else:
+        fp = open(path, 'rb')
+        msg = email.mime.base.MIMEBase(maintype, subtype)
+        msg.set_payload(fp.read())
+        fp.close()
+        # Encode the payload using Base64
+        encoders.encode_base64(msg)
+    if(attachment.get('transfer_name') and attachment.get('created_date')):
+        msg.add_header('Content-Disposition', 'attachment',
+            creation_date=email.utils.formatdate(attachment['created_date']),
+            filename=attachment['transfer_name'])
+    elif(attachment.get('transfer_name')):
+        msg.add_header('Content-Disposition', 'attachment',
+            filename=attachment['transfer_name'])
+    elif(attachment.get('created_date')):
+        msg.add_header('Content-Disposition', 'attachment',
+            creation_date=email.utils.formatdate(attachment['created_date']))
+    return msg
+
 def get_email(message, addressbook):
     outer = email.mime.multipart.MIMEMultipart()
     outer['Subject']    = get_subject(message, addressbook)
@@ -92,9 +131,26 @@ def get_email(message, addressbook):
             get_message_id(message['chat']['_last_message_id'])
     if(message['chat'].get('_first_message_id')):
         outer['References'] = \
-            get_message_id(message['chat']['_first_message_id']) + ', ' + \
+            get_message_id(message['chat']['_first_message_id']) + ' ' + \
             get_message_id(message['chat']['_last_message_id'])
-    outer['X-imessagetogmail-']
+    outer['X-imessagesync-guid'] = message['guid']
+    outer['X-imessagesync-chat-guid'] = message['chat']['guid']
+    outer['X-imessagesync-chat-contacts'] = \
+        ' '.join(map(lambda h: h['contact'], message['chat']['handles']))
+    if(message.get('account')):
+        outer['X-imessagesync-account']   = message['account']
+    if(message['is_delivered']):
+        outer['X-imessagesync-date-delivered'] = \
+            email.utils.formatdate(message['date_delivered'])
+    if(message['is_read']):
+        outer['X-imessagesync-date-read'] = \
+            email.utils.formatdate(message['date_read'])
+    if(message['handle']):
+        outer['X-imessagesync-handle-contact'] = message['handle']['contact']
+        outer['X-imessagesync-handle-country'] = message['handle']['country']
+        outer['X-imessagesync-handle-service'] = message['handle']['service']
     outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
     outer.attach(get_text_msg(message))
+    for a in message['attachments']:
+        outer.attach(get_attachment_msg(a))
     return outer
