@@ -137,15 +137,24 @@ def set_headers(outer, message, addressbook):
     if(message['chat'].get('_last_message_id')):
         outer['In-Reply-To']             = \
             get_message_id(message['chat']['_last_message_id'])
-    if(message['chat'].get('_first_message_id')):
         outer['References']              = \
-            get_message_id(message['chat']['_first_message_id']) + ' ' + \
+            get_message_id(message['chat']['guid']) + ' ' + \
             get_message_id(message['chat']['_last_message_id'])
+    else:
+        outer['References']              = \
+            get_message_id(message['chat']['guid'])
+    # if(message['chat'].get('_first_message_id')):
+    #     outer['References']              = \
+    #         get_message_id(message['chat']['_first_message_id']) + ' ' + \
+    #         get_message_id(message['chat']['_last_message_id'])
     outer[Xheader_guid]                  = message['guid']
     outer[Xheader('chat-guid')]          = message['chat']['guid']
     outer[Xheader('chat-contacts')]      = \
         ' '.join(map(lambda h: h['contact'], message['chat']['handles']))
-    if(message.get('account')):
+    outer[Xheader('chat-my-contact')]    = \
+        message['chat']['last_addressed_handle']
+    outer[Xheader('service')]            = message['service']
+    if(message.get('account') and message['account'] != 'e:'):
         outer[Xheader('account')]        = message['account']
     if(message['is_delivered']):
         outer[Xheader('date-delivered')] = \
@@ -154,9 +163,9 @@ def set_headers(outer, message, addressbook):
         outer[Xheader('date-read')]      = \
             email.utils.formatdate(message['date_read'])
     if(message['handle']):
-        outer[Xheader('handle-contact')] = message['handle']['contact']
-        outer[Xheader('handle-country')] = message['handle']['country']
-        outer[Xheader('handle-service')] = message['handle']['service']
+        outer[Xheader('contact')]        = message['handle']['contact']
+#        outer[Xheader('handle-country')] = message['handle']['country']
+#        outer[Xheader('handle-service')] = message['handle']['service']
 
 def get_email(message, addressbook):
     if(message['attachments']):

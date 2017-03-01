@@ -82,16 +82,23 @@ class IMessageSync:
                 message['message_rowid'],
                 len(email_str)))
         resp, data = self.connection.append(self.mailbox,
-            '(\\Seen)' if message['is_read'] else None,
+            '(\\Seen)' if message['is_read'] or message['is_from_me'] else None,
             imaplib.Time2Internaldate(message['date']), email_str)
         if self.verbose:
             print('  ',resp,data)
         return resp == 'OK'
 
-    def upload_all_messages(self, messages):
+    def upload_all_messages(self, messages, guids_to_skip):
         for id in messages.keys():
             message = messages[id]
             if(not imessage_to_mime.is_valid(message)):
                 continue
-            self.upload_message(message)
+            if(not guids_to_skip or message['guid'] not in guids_to_skip):
+                self.upload_message(message)
+            elif self.verbose:
+                to_from = 'from'
+                print('Skipping message %s %s, index: %d'%( \
+                    'to' if message['is_from_me'] else 'from',
+                    message['handle']['contact'] if message.get('handle') else 'unknown',
+                    message['message_rowid']))
             imessage_to_mime.update_chat_thread_ids(message)
