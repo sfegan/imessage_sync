@@ -22,7 +22,9 @@
 
 import imaplib
 import imaplib_connect
+import imessage_db_reader
 import imessage_to_mime
+import addressbook
 import re
 
 class IMessageSync:
@@ -71,8 +73,8 @@ class IMessageSync:
             i += block_size
         return guids
 
-    def upload_message(self, message):
-        email_msg = imessage_to_mime.get_email(message, self.addressbook)
+    def upload_message(self, message, in_reply_to = dict()):
+        email_msg = imessage_to_mime.get_email(message, self.addressbook, in_reply_to)
         email_str = email_msg.as_bytes()
         if self.verbose:
             to_from = 'from'
@@ -88,17 +90,28 @@ class IMessageSync:
             print('  ',resp,data)
         return resp == 'OK'
 
-    def upload_all_messages(self, messages, guids_to_skip):
+    def upload_all_messages(self, messages, guids_to_skip = set()):
+        in_reply_to = dict()
         for id in messages.keys():
             message = messages[id]
             if(not imessage_to_mime.is_valid(message)):
                 continue
             if(not guids_to_skip or message['guid'] not in guids_to_skip):
-                self.upload_message(message)
+                self.upload_message(message, in_reply_to)
             elif self.verbose:
                 to_from = 'from'
                 print('Skipping message %s %s, index: %d'%( \
                     'to' if message['is_from_me'] else 'from',
                     message['handle']['contact'] if message.get('handle') else 'unknown',
                     message['message_rowid']))
-            imessage_to_mime.update_chat_thread_ids(message)
+            imessage_to_mime.update_chat_thread_ids(message, in_reply_to)
+
+def sync_all_messages(verbose = True):
+    c, me = imaplib_connect.open_connection(verbose = verbose)
+    a = addressbook.AddressBook(me)
+    db = imessage_db_reader.IMessageDBReader()
+    x = db.get_messages();
+    sync = IMessageSync(c,a,verbose=verbose)
+    guids_to_skip = sync.fetch_all_guids()
+    sync.upload_all_messages(x, guids_to_skip)
+    return x, db, sync

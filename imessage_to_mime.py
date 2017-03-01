@@ -27,18 +27,26 @@ import email.mime.audio
 import email.mime.multipart
 import email.utils
 import email.encoders
+import email.charset
 import email
+import hashlib
 #import BytesIO
+
+#email.charset.Charset('utf-8').body_encoding = email.charset.QP
 
 Xheader_base = 'X-imessagesync-'
 def Xheader(ext): return Xheader_base + ext
 Xheader_guid = Xheader('guid')
+message_id_fqdn = '@imessage_sync.local'
 
 def get_handle_name(handle, addressbook):
     name = addressbook.lookup_name(handle)
     if(name is None):
         name = handle['contact']
     return name
+
+def get_chat_contacts(chat):
+    return ','.join(map(lambda h: h['contact'], chat['handles']))
 
 def get_chat_names(chat, addressbook):
     s = get_handle_name(chat['handles'][0], addressbook)
@@ -52,8 +60,7 @@ def get_subject(message, addressbook):
     if(message['subject']):
         return message['subject']
     else:
-        return message['chat']['service'] + ' with ' \
-            + get_chat_names(message['chat'], addressbook)
+        return 'Chat with ' + get_chat_names(message['chat'], addressbook)
 
 def get_from(message, addressbook):
     if(message['is_from_me']):
@@ -83,11 +90,25 @@ def get_to(message, addressbook):
         return ', '.join(th)
     pass
 
-def get_message_id(guid):
-    return '<'+guid+'@imessage_sync.local>'
+def get_rfc3501_id(id):
+    return '<'+id+message_id_fqdn+'>'
+
+def get_message_id(message):
+    return get_rfc3501_id(message['guid'])
+
+def get_chat_id(chat):
+    return get_rfc3501_id(get_chat_contacts(chat))
 
 def get_text_msg(message):
-	return email.mime.text.MIMEText(message['text'])
+    text = message['text']
+    try:
+        text.encode('us-ascii')
+    except:
+        msg = email.mime.text.MIMEText('', _charset='utf-8')
+        msg.replace_header('content-transfer-encoding', 'quoted-printable')
+        msg.set_payload(text, 'utf-8')
+        return msg
+    return email.mime.text.MIMEText(text, _charset='us-ascii')
 
 def get_attachment_msg(attachment):
     maintype, subtype = attachment['mime_type'].split('/')
@@ -128,59 +149,51 @@ def is_valid(message):
     return message.get('chat') and message['chat']['handles'] \
         and (message.get('handle') or message.get('other_handle'))
 
-def set_headers(outer, message, addressbook):
+def set_headers(outer, message, addressbook, in_reply_to):
     outer['Subject']    = get_subject(message, addressbook)
     outer['To']         = get_to(message, addressbook)
     outer['From']       = get_from(message, addressbook)
     outer['Date']       = email.utils.formatdate(message['date'])
-    outer['Message-ID'] = get_message_id(message['guid'])
-    if(message['chat'].get('_last_message_id')):
-        outer['In-Reply-To']             = \
-            get_message_id(message['chat']['_last_message_id'])
-        outer['References']              = \
-            get_message_id(message['chat']['guid']) + ' ' + \
-            get_message_id(message['chat']['_last_message_id'])
+    outer['Message-ID'] = get_message_id(message)
+    chat_id = get_chat_id(message['chat'])
+    if(chat_id in in_reply_to):
+        outer['In-Reply-To']             = in_reply_to[chat_id]
+        outer['References']              = chat_id + ' ' + in_reply_to[chat_id]
     else:
-        outer['References']              = \
-            get_message_id(message['chat']['guid'])
-    # if(message['chat'].get('_first_message_id')):
-    #     outer['References']              = \
-    #         get_message_id(message['chat']['_first_message_id']) + ' ' + \
-    #         get_message_id(message['chat']['_last_message_id'])
+        outer['References']              = chat_id
     outer[Xheader_guid]                  = message['guid']
-    outer[Xheader('chat-guid')]          = message['chat']['guid']
-    outer[Xheader('chat-contacts')]      = \
+    #outer[Xheader('chat-guid')]          = message['chat']['guid']
+    outer[Xheader('contacts')]           = \
         ' '.join(map(lambda h: h['contact'], message['chat']['handles']))
-    outer[Xheader('chat-my-contact')]    = \
+    outer[Xheader('my-contact')]         = \
         message['chat']['last_addressed_handle']
     outer[Xheader('service')]            = message['service']
     if(message.get('account') and message['account'] != 'e:'):
         outer[Xheader('account')]        = message['account']
-    if(message['is_delivered']):
+    if(message['date_delivered'] and message['is_delivered']):
         outer[Xheader('date-delivered')] = \
             email.utils.formatdate(message['date_delivered'])
-    if(message['is_read']):
+    if(message['date_read'] and message['is_read']):
         outer[Xheader('date-read')]      = \
             email.utils.formatdate(message['date_read'])
-    if(message['handle']):
-        outer[Xheader('contact')]        = message['handle']['contact']
+    if(not message['is_from_me'] and message['handle']):
+        outer[Xheader('from-contact')]   = message['handle']['contact']
 #        outer[Xheader('handle-country')] = message['handle']['country']
 #        outer[Xheader('handle-service')] = message['handle']['service']
 
-def get_email(message, addressbook):
+def get_email(message, addressbook, in_reply_to = dict()):
     if(message['attachments']):
         outer = email.mime.multipart.MIMEMultipart()
-        set_headers(outer, message, addressbook)
+        set_headers(outer, message, addressbook, in_reply_to)
         outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
         outer.attach(get_text_msg(message))
         for a in message['attachments']:
             outer.attach(get_attachment_msg(a))
     else:
         outer = get_text_msg(message)
-        set_headers(outer, message, addressbook)
+        set_headers(outer, message, addressbook, in_reply_to)
     return outer
 
-def update_chat_thread_ids(message):
-    message['chat']['_last_message_id'] = message['guid']
-    if(message['chat'].get('_first_message_id') is None):
-        message['chat']['_first_message_id'] = message['guid']
+def update_chat_thread_ids(message, in_reply_to):
+    chat_id = get_chat_id(message['chat'])
+    in_reply_to[chat_id] = get_message_id(message)
