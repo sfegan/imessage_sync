@@ -73,11 +73,33 @@ class IMessageSync:
             i += block_size
         return guids
 
-    def upload_message(self, message, in_reply_to = dict()):
-        email_msg = imessage_to_mime.get_email(message, self.addressbook, in_reply_to)
-        email_str = email_msg.as_bytes()
+    def upload_message(self, message, in_reply_to = dict(), upload_max=25000000):
+        while(True):
+            email_msg = imessage_to_mime.get_email(message, self.addressbook, in_reply_to)
+            email_str = email_msg.as_bytes()
+            if(upload_max is None or upload_max<=0 or len(email_str)<upload_max):
+                break
+            amaxsize = None
+            maxsize = None
+            for ia, a in enumerate(message['attachments']):
+                if(maxsize is None or a['total_bytes']>maxsize):
+                    maxsize = a['total_bytes']
+                    amaxsize = a
+            action = 'terminating'
+            if(amaxsize):
+                action = 'deleting attachment %s'%amaxsize['filename']
+            print('Message %s %s, index: %d, size: %d, exceeds limit: %s'%( \
+                'to' if message['is_from_me'] else 'from',
+                message['handle']['contact'] if message.get('handle') else 'unknown',
+                message['message_rowid'],
+                len(email_str), action))
+            if(amaxsize):
+                amaxsize['suppress'] = True
+            else:
+                return false, 'TOOBIG'
+            # try again!
+
         if self.verbose:
-            to_from = 'from'
             print('Uploading message %s %s, index: %d, size: %d'%( \
                 'to' if message['is_from_me'] else 'from',
                 message['handle']['contact'] if message.get('handle') else 'unknown',
@@ -88,7 +110,17 @@ class IMessageSync:
             imaplib.Time2Internaldate(message['date']), email_str)
         if self.verbose:
             print('  ',resp,data)
-        return resp == 'OK'
+        if resp == 'OK':
+            return True, resp
+        else:
+            if(len(data)>0):
+                data0 = data[0].decode()
+                g = re.match(r'\[(.*)\].*',data0)
+                if(g):
+                    return False, g.groups()[0]
+                else:
+                    return False, data0;
+        return False, resp
 
     def upload_all_messages(self, messages, guids_to_skip = set()):
         in_reply_to = dict()
@@ -97,21 +129,23 @@ class IMessageSync:
             if(not imessage_to_mime.is_valid(message)):
                 continue
             if(not guids_to_skip or message['guid'] not in guids_to_skip):
-                self.upload_message(message, in_reply_to)
+                good, status = self.upload_message(message, in_reply_to)
             elif self.verbose:
-                to_from = 'from'
                 print('Skipping message %s %s, index: %d'%( \
                     'to' if message['is_from_me'] else 'from',
                     message['handle']['contact'] if message.get('handle') else 'unknown',
                     message['message_rowid']))
             imessage_to_mime.update_chat_thread_ids(message, in_reply_to)
 
+def get_all_messages():
+    db = imessage_db_reader.IMessageDBReader()
+    return db.get_messages()
+
 def sync_all_messages(verbose = True):
+    x = get_all_messages()
     c, me = imaplib_connect.open_connection(verbose = verbose)
     a = addressbook.AddressBook(me)
-    db = imessage_db_reader.IMessageDBReader()
-    x = db.get_messages();
     sync = IMessageSync(c,a,verbose=verbose)
     guids_to_skip = sync.fetch_all_guids()
     sync.upload_all_messages(x, guids_to_skip)
-    return x, db, sync
+    return x, sync

@@ -57,10 +57,7 @@ def get_chat_names(chat, addressbook):
     return s
 
 def get_subject(message, addressbook):
-    if(message['subject']):
-        return message['subject']
-    else:
-        return 'Chat with ' + get_chat_names(message['chat'], addressbook)
+    return 'Chat with ' + get_chat_names(message['chat'], addressbook)
 
 def get_from(message, addressbook):
     if(message['is_from_me']):
@@ -111,8 +108,11 @@ def get_text_msg(message):
     return email.mime.text.MIMEText(text, _charset='us-ascii')
 
 def get_attachment_msg(attachment):
-    maintype, subtype = attachment['mime_type'].split('/')
     path = attachment['filename']
+    if('suppress' in attachment and attachment['suppress']):
+        return email.mime.text.MIMEText('Attachment "%s" suppressed due to '
+            'file-size constraints'%path)
+    maintype, subtype = attachment['mime_type'].split('/')
     if maintype == 'text':
         fp = open(path)
         # Note: we should handle calculating the charset
@@ -146,8 +146,10 @@ def get_attachment_msg(attachment):
     return msg
 
 def is_valid(message):
-    return message.get('chat') and message['chat']['handles'] \
-        and (message.get('handle') or message.get('other_handle'))
+    return (message.get('chat') is not None and \
+        len(message['chat']['handles'])>0 and \
+        (message['is_from_me']==True or message.get('handle') is not None or message.get('other_handle') is not None) and \
+        (message['text'] is not None or len(message['attachments'])>0))
 
 def set_headers(outer, message, addressbook, in_reply_to):
     outer['Subject']    = get_subject(message, addressbook)
