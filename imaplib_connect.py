@@ -3,6 +3,7 @@
 import imaplib
 import configparser
 import os
+import addressbook
 
 def open_connection(verbose=False, credentials='~/.imessage_sync'):
     # Read the config file
@@ -21,7 +22,11 @@ def open_connection(verbose=False, credentials='~/.imessage_sync'):
     if verbose:
         print('Logging in as', username)
     connection.login(username, password)
-    return connection, config.get('account', 'identity')
+
+    ab = addressbook.AddressBook(config.get('identity', 'address'),
+        config.get('identity', 'default_country'));
+
+    return connection, ab
 
 if __name__ == '__main__':
     c = open_connection(verbose=True)

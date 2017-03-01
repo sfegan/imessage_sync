@@ -143,8 +143,7 @@ def get_all_messages():
 
 def sync_all_messages(verbose = True):
     x = get_all_messages()
-    c, me = imaplib_connect.open_connection(verbose = verbose)
-    a = addressbook.AddressBook(me)
+    c, a = imaplib_connect.open_connection(verbose = verbose)
     sync = IMessageSync(c,a,verbose=verbose)
     guids_to_skip = sync.fetch_all_guids()
     sync.upload_all_messages(x, guids_to_skip)

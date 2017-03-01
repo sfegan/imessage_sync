@@ -23,6 +23,7 @@
 import sqlite3
 import phonenumbers
 import os
+import glob
 
 ab_base_dir = '~/Library/Application Support/AddressBook'
 ab_source_dir = 'Sources'
@@ -32,6 +33,7 @@ class AddressBook:
     def __init__(self, my_identity, default_country_code=None):
         self._me = my_identity
         self._cc = default_country_code or 'FR'
+        self._lu = make_lookup_table(self)
 
     def me(self):
         return self._me
@@ -67,8 +69,31 @@ class AddressBook:
             ab[entry[0]]['email_addresses'][entry[1]] = entry[2]
         return ab
 
+    def glob_address_book_filenames(self):
+        files = [ os.path.expanduser(ab_base_dir) + '/' + ab_db_file ]
+        for f in glob.glob(os.path.expanduser(ab_base_dir) + '/' + ab_source_dir + '/*/' + ab_db_file):
+            files.append(f)
+        return files
+
+    def make_lookup_table(self):
+        lu = dict()
+        for f in self.glob_address_book_filenames():
+            ab = self.read_address_db(f)
+            for iab in ab:
+                a = ab[iab]
+                email = None
+                name = None
+                for ipn in ab[iab]['phone_numbers']:
+                    lu[ab[iab]['phone_numbers'][ipn]] = ab[iab]
+        return lu
+
     def lookup_email(self, handle):
         return handle['contact'] + ' <' + handle['contact'] + '@unknown.email.local>'
 
     def lookup_name(self, handle):
-        return handle['contact']
+        if(handle['contact'] in self._lu):
+            a = self._lu[handle['contact']]
+            if(aself.)
+            return
+        else:
+            return handle['contact']
