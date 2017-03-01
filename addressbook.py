@@ -33,7 +33,7 @@ class AddressBook:
     def __init__(self, my_identity, default_country_code=None):
         self._me = my_identity
         self._cc = default_country_code or 'FR'
-        self._lu = make_lookup_table(self)
+        self._lu = self.make_lookup_table()
 
     def me(self):
         return self._me
@@ -82,18 +82,40 @@ class AddressBook:
             for iab in ab:
                 a = ab[iab]
                 email = None
+                if a['email_addresses']:
+                    ea = a['email_addresses']
+                    email = ea[min(ea)]
                 name = None
-                for ipn in ab[iab]['phone_numbers']:
-                    lu[ab[iab]['phone_numbers'][ipn]] = ab[iab]
+                nc = []
+                if(a['first_name']):
+                    nc.append(a['first_name'])
+                if(a['middle_name']):
+                    nc.append(a['middle_name'])
+                if(a['last_name']):
+                    nc.append(a['last_name'])
+                if(not nc and a['nick_name']):
+                    nc.append(a['nick_name'])
+                if(not nc and a['organization']):
+                    nc.append(a['organization'])
+                if(nc):
+                    name = ' '.join(nc)
+                if(name is None and email is None):
+                    continue
+                for ipn in a['phone_numbers']:
+                    pn = a['phone_numbers'][ipn]
+                    if(pn not in lu):
+                        lu[pn] = dict()
+                    if email:
+                        lu[pn]['email'] = email
+                    if name:
+                        lu[pn]['name'] = name
         return lu
 
     def lookup_email(self, handle):
-        return handle['contact'] + ' <' + handle['contact'] + '@unknown.email.local>'
+        c = handle['contact']
+        email = self._lu.get(c, dict()).get('email') or c+'@unknown.email.local'
+        return self.lookup_name(handle) + ' <' + email + '>'
 
     def lookup_name(self, handle):
-        if(handle['contact'] in self._lu):
-            a = self._lu[handle['contact']]
-            if(aself.)
-            return
-        else:
-            return handle['contact']
+        c = handle['contact']
+        return self._lu.get(c, dict()).get('name') or c

@@ -74,6 +74,11 @@ class IMessageSync:
         return guids
 
     def upload_message(self, message, in_reply_to = dict(), upload_max=25000000):
+        address = 'unknown'
+        if(message['is_from_me']):
+            address = imessage_to_mime.get_chat_names(message['chat'], self.addressbook)
+        elif(message.get('handle')):
+            address = imessage_to_mime.get_handle_name(message['handle'], self.addressbook)
         while(True):
             email_msg = imessage_to_mime.get_email(message, self.addressbook, in_reply_to)
             email_str = email_msg.as_bytes()
@@ -90,9 +95,7 @@ class IMessageSync:
                 action = 'deleting attachment %s'%amaxsize['filename']
             print('Message %s %s, index: %d, size: %d, exceeds limit: %s'%( \
                 'to' if message['is_from_me'] else 'from',
-                message['handle']['contact'] if message.get('handle') else 'unknown',
-                message['message_rowid'],
-                len(email_str), action))
+                address, message['message_rowid'], len(email_str), action))
             if(amaxsize):
                 amaxsize['suppress'] = True
             else:
@@ -102,9 +105,7 @@ class IMessageSync:
         if self.verbose:
             print('Uploading message %s %s, index: %d, size: %d'%( \
                 'to' if message['is_from_me'] else 'from',
-                message['handle']['contact'] if message.get('handle') else 'unknown',
-                message['message_rowid'],
-                len(email_str)))
+                address, message['message_rowid'], len(email_str)))
         resp, data = self.connection.append(self.mailbox,
             '(\\Seen)' if message['is_read'] or message['is_from_me'] else None,
             imaplib.Time2Internaldate(message['date']), email_str)
@@ -137,12 +138,12 @@ class IMessageSync:
                     message['message_rowid']))
             imessage_to_mime.update_chat_thread_ids(message, in_reply_to)
 
-def get_all_messages():
-    db = imessage_db_reader.IMessageDBReader()
+def get_all_messages(base_path = None):
+    db = imessage_db_reader.IMessageDBReader(base_path = base_path)
     return db.get_messages()
 
-def sync_all_messages(verbose = True):
-    x = get_all_messages()
+def sync_all_messages(verbose = True, base_path = None):
+    x = get_all_messages(base_path = base_path)
     c, a = imaplib_connect.open_connection(verbose = verbose)
     sync = IMessageSync(c,a,verbose=verbose)
     guids_to_skip = sync.fetch_all_guids()
