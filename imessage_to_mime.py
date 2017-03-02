@@ -108,6 +108,8 @@ def get_text_msg(message):
     return email.mime.text.MIMEText(text, _charset='us-ascii')
 
 def get_attachment_msg(attachment):
+    if(not attachment['mime_type']):
+        return None
     path = attachment['filename']
     if('suppress' in attachment and attachment['suppress']):
         return email.mime.text.MIMEText('Attachment "%s" suppressed due to '
@@ -190,7 +192,9 @@ def get_email(message, addressbook, in_reply_to = dict()):
         outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
         outer.attach(get_text_msg(message))
         for a in message['attachments']:
-            outer.attach(get_attachment_msg(a))
+            amsg = get_attachment_msg(a)
+            if(amsg):
+                outer.attach(amsg)
     else:
         outer = get_text_msg(message)
         set_headers(outer, message, addressbook, in_reply_to)

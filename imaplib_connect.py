@@ -1,14 +1,14 @@
 # imaplib_connect.py
 
 import imaplib
-import configparser
 import os
 import addressbook
+import imessage_sync_config
 
-def open_connection(verbose=False, credentials='~/.imessage_sync'):
+def open_connection(verbose=False, config=None):
     # Read the config file
-    config = configparser.ConfigParser()
-    config.read([os.path.expanduser(credentials)])
+    if(not config):
+        config = imessage_sync_config.get_config()
 
     # Connect to the server
     hostname = config.get('server', 'hostname')
@@ -23,10 +23,7 @@ def open_connection(verbose=False, credentials='~/.imessage_sync'):
         print('Logging in as', username)
     connection.login(username, password)
 
-    ab = addressbook.AddressBook(config.get('identity', 'address'),
-        config.get('identity', 'default_country'));
-
-    return connection, ab
+    return connection
 
 if __name__ == '__main__':
     c = open_connection(verbose=True)

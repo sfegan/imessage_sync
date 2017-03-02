@@ -22,16 +22,19 @@
 
 import imaplib
 import imaplib_connect
+import imessage_sync_config
 import imessage_db_reader
 import imessage_to_mime
 import addressbook
 import re
 
 class IMessageSync:
-    def __init__(self, connection, addressbook, mailbox='iMessage', verbose=False):
+    def __init__(self, connection, addressbook, config=None, verbose=False):
+        if(not config):
+            config = imessage_sync_config.get_config()
         self.connection   = connection
         self.addressbook  = addressbook
-        self.mailbox      = mailbox
+        self.mailbox      = config.get('server', 'mailbox', fallback='iMessage')
         self.verbose      = verbose
 
     def mailbox_size(self):
@@ -73,12 +76,20 @@ class IMessageSync:
             i += block_size
         return guids
 
-    def upload_message(self, message, in_reply_to = dict(), upload_max=25000000):
+    def message_summary(self, message, before_gid = None):
         address = 'unknown'
         if(message['is_from_me']):
             address = imessage_to_mime.get_chat_names(message['chat'], self.addressbook)
         elif(message.get('handle')):
             address = imessage_to_mime.get_handle_name(message['handle'], self.addressbook)
+        s = 'to' if message['is_from_me'] else 'from'
+        s += ' ' + address + ', index: %d'%message['message_rowid']
+        if before_gid:
+            s+= ', ' + before_gid
+        s+= ', ' + message['guid']
+        return s
+
+    def upload_message(self, message, in_reply_to = dict(), upload_max=25000000):
         while(True):
             email_msg = imessage_to_mime.get_email(message, self.addressbook, in_reply_to)
             email_str = email_msg.as_bytes()
@@ -90,12 +101,12 @@ class IMessageSync:
                 if(maxsize is None or a['total_bytes']>maxsize):
                     maxsize = a['total_bytes']
                     amaxsize = a
-            action = 'terminating'
+            action = 'Terminating'
             if(amaxsize):
-                action = 'deleting attachment %s'%amaxsize['filename']
-            print('Message %s %s, index: %d, size: %d, exceeds limit: %s'%( \
-                'to' if message['is_from_me'] else 'from',
-                address, message['message_rowid'], len(email_str), action))
+                action = 'Deleting attachment %s'%amaxsize['filename']
+            print('Message',
+                self.message_summary(message, 'size: %d, exceeds limit'%len(email_str)))
+            print('  ', action)
             if(amaxsize):
                 amaxsize['suppress'] = True
             else:
@@ -103,9 +114,8 @@ class IMessageSync:
             # try again!
 
         if self.verbose:
-            print('Uploading message %s %s, index: %d, size: %d'%( \
-                'to' if message['is_from_me'] else 'from',
-                address, message['message_rowid'], len(email_str)))
+            print('Uploading message',
+                self.message_summary(message, 'size: %d'%len(email_str)))
         resp, data = self.connection.append(self.mailbox,
             '(\\Seen)' if message['is_read'] or message['is_from_me'] else None,
             imaplib.Time2Internaldate(message['date']), email_str)
@@ -125,7 +135,7 @@ class IMessageSync:
 
     def upload_all_messages(self, messages, guids_to_skip = set()):
         in_reply_to = dict()
-        for id in messages.keys():
+        for id in sorted(messages, key=lambda im: messages[im]['date']):
             message = messages[id]
             if(not imessage_to_mime.is_valid(message)):
                 continue
@@ -142,9 +152,24 @@ def get_all_messages(base_path = None):
     db = imessage_db_reader.IMessageDBReader(base_path = base_path)
     return db.get_messages()
 
-def sync_all_messages(verbose = True, base_path = None):
+def sync_all_messages(base_path = None, verbose = True,
+        start_date = None, stop_date = None):
+    config = imessage_sync_config.get_config()
     x = get_all_messages(base_path = base_path)
-    c, a = imaplib_connect.open_connection(verbose = verbose)
+    if(start_date):
+        xx = dict()
+        for ix in filter(lambda ix: x[ix]['date']>=start_date, x):
+            xx[ix] = x[ix]
+        x = xx
+    if(stop_date):
+        xx = dict()
+        for ix in filter(lambda ix: x[ix]['date']<=stop_date, x):
+            xx[ix] = x[ix]
+        x = xx
+    if(verbose):
+        print('Processing %d messages'%len(x))
+    c = imaplib_connect.open_connection(config = config, verbose = verbose)
+    a = addressbook.AddressBook(config = config)
     sync = IMessageSync(c,a,verbose=verbose)
     guids_to_skip = sync.fetch_all_guids()
     sync.upload_all_messages(x, guids_to_skip)

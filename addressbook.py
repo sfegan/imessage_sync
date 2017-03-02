@@ -24,21 +24,34 @@ import sqlite3
 import phonenumbers
 import os
 import glob
+import imessage_sync_config
 
-ab_base_dir = '~/Library/Application Support/AddressBook'
-ab_source_dir = 'Sources'
-ab_db_file = 'AddressBook-v22.abcddb'
+sys_ab_base_dir = '~/Library/Application Support/AddressBook'
+sys_ab_source_dir = 'Sources'
+sys_ab_db_file = 'AddressBook-v22.abcddb'
 
 class AddressBook:
-    def __init__(self, my_identity, default_country_code=None):
-        self._me = my_identity
-        self._cc = default_country_code or 'FR'
+    def __init__(self, config=None, ab_base_dir=None):
+        # Read the config file
+        if(not config):
+            config = imessage_sync_config.get_config()
+
+        self._me = config.get('identity', 'address')
+        self._cc = config.get('identity', 'default_country', fallback='US')
+        self._ab_base_dir = ab_base_dir or \
+            config.get('address_book', 'base_dir', fallback=sys_ab_base_dir)
+        self._ab_source_dir = \
+            config.get('address_book', 'source_dir', fallback=sys_ab_source_dir)
+        self._ab_db_file = \
+            config.get('address_book', 'db_file', fallback=sys_ab_db_file)
         self._lu = self.make_lookup_table()
 
     def me(self):
         return self._me
 
-    def read_address_db(self, filename = ab_base_dir + '/' + ab_db_file):
+    def read_address_db(self, filename = None):
+        if(not filename):
+            filename = self._ab_base_dir + '/' + self._ab_db_file
         ab = dict()
         db = sqlite3.connect('file:'
             + os.path.expanduser(filename)
@@ -70,8 +83,8 @@ class AddressBook:
         return ab
 
     def glob_address_book_filenames(self):
-        files = [ os.path.expanduser(ab_base_dir) + '/' + ab_db_file ]
-        for f in glob.glob(os.path.expanduser(ab_base_dir) + '/' + ab_source_dir + '/*/' + ab_db_file):
+        files = [ os.path.expanduser(self._ab_base_dir) + '/' + self._ab_db_file ]
+        for f in glob.glob(os.path.expanduser(self._ab_base_dir) + '/' + self._ab_source_dir + '/*/' + self._ab_db_file):
             files.append(f)
         return files
 
@@ -109,6 +122,13 @@ class AddressBook:
                         lu[pn]['email'] = email
                     if name:
                         lu[pn]['name'] = name
+                for iea in a['email_addresses']:
+                    ea = a['email_addresses'][iea]
+                    if(ea not in lu):
+                        lu[ea] = dict()
+                    lu[ea]['email'] = ea
+                    if name:
+                        lu[ea]['name'] = name
         return lu
 
     def lookup_email(self, handle):
