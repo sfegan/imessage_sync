@@ -30,6 +30,7 @@ import email.encoders
 import email.charset
 import email
 import hashlib
+import copy
 #import BytesIO
 
 #email.charset.Charset('utf-8').body_encoding = email.charset.QP
@@ -111,9 +112,6 @@ def get_attachment_msg(attachment):
     if(not attachment['mime_type']):
         return None
     path = attachment['filename']
-    if('suppress' in attachment and attachment['suppress']):
-        return email.mime.text.MIMEText('Attachment "%s" suppressed due to '
-            'file-size constraints'%path)
     maintype, subtype = attachment['mime_type'].split('/')
     if maintype == 'text':
         fp = open(path)
@@ -185,16 +183,48 @@ def set_headers(outer, message, addressbook, in_reply_to):
 #        outer[Xheader('handle-country')] = message['handle']['country']
 #        outer[Xheader('handle-service')] = message['handle']['service']
 
-def get_email(message, addressbook, in_reply_to = dict()):
+def get_email(message, addressbook, in_reply_to = dict(), max_attachment_size = None):
     if(message['attachments']):
+        emails = []
         outer = email.mime.multipart.MIMEMultipart()
         set_headers(outer, message, addressbook, in_reply_to)
         outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
         outer.attach(get_text_msg(message))
+        attachments = []
         for a in message['attachments']:
-            amsg = get_attachment_msg(a)
-            if(amsg):
-                outer.attach(amsg)
+            attachments.append(get_attachment_msg(a))
+        if(max_attachment_size is not None and max_attachment_size > 0):
+            total_asize = 0
+            for ia, a in enumerate(attachments):
+                if(not a):
+                    continue
+                asize = len(a.as_bytes())
+                if(asize > max_attachment_size):
+                    a = email.mime.text.MIMEText('Attachment "%s" suppressed due to '
+                        'file-size constraints'%message['attachments'][ia]['filename'])
+                    asize = len(a.as_bytes())
+                elif(total_asize + asize > max_attachment_size):
+                    outer[Xheader('fragment')] = str(len(emails))
+                    emails.append(outer)
+                    new_message = copy.copy(message)
+                    new_message['guid'] = \
+                        message['guid'] + '-FRAGMENT-' + str(len(emails))
+                    outer = email.mime.multipart.MIMEMultipart()
+                    set_headers(outer, new_message, addressbook, in_reply_to)
+                    outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
+                    total_asize = 0
+                outer.attach(a)
+                total_asize += asize
+        else:
+            for a in attachments:
+                if(a):
+                    outer.attach(a)
+        if(emails):
+            outer[Xheader('fragment')] = str(len(emails))
+            emails.append(outer)
+            return emails
+        else:
+            return outer
     else:
         outer = get_text_msg(message)
         set_headers(outer, message, addressbook, in_reply_to)
