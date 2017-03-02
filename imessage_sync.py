@@ -126,6 +126,12 @@ class IMessageSync:
                 print('Skipping message', self.message_summary(message))
             imessage_to_mime.update_chat_thread_ids(message, in_reply_to)
 
+    def print_all_messages(self, messages):
+        in_reply_to = dict()
+        for id in sorted(messages, key=lambda im: messages[im]['date']):
+            message = messages[id]
+            print(self.message_summary(message))
+
 def get_all_messages(base_path = None):
     db = imessage_db_reader.IMessageDBReader(base_path = base_path)
     return db.get_messages()
@@ -151,3 +157,10 @@ def sync_all_messages(base_path = None, verbose = True,
     sync = IMessageSync(c,a,verbose=verbose)
     guids_to_skip = sync.fetch_all_guids()
     sync.upload_all_messages(x, guids_to_skip)
+
+def print_all_messages(base_path = None):
+    config = imessage_sync_config.get_config()
+    x = get_all_messages(base_path = base_path)
+    a = addressbook.AddressBook(config = config)
+    sync = IMessageSync(None,a)
+    sync.print_all_messages(x)
