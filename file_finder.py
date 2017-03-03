@@ -25,6 +25,7 @@
 import os
 import sys
 import hashlib
+import sqlite3
 
 def getint(data, offset, intsize):
     """Retrieve an integer (big-endian) and new offset from the current offset"""
@@ -51,13 +52,13 @@ def getbytes(data, offset):
     value = data[offset:offset+length]
     return value, (offset + length)
 
-class NativeDBFilename:
+class NativeDBFilenameFinder:
     native_db_path = '~/Library/Messages'
     native_chat_db = 'chat.db'
 
     def __init__(self, db_path = None, chat_db = None):
-        self._db_path = db_path or NativeDBFilename.native_db_path
-        self._chat_db = chat_db or NativeDBFilename.native_chat_db
+        self._db_path = db_path or NativeDBFilenameFinder.native_db_path
+        self._chat_db = chat_db or NativeDBFilenameFinder.native_chat_db
 
     def chat_db(self):
         return os.path.expanduser(self._db_path + '/' + self._chat_db)
@@ -65,11 +66,11 @@ class NativeDBFilename:
     def filename(self, f):
         return f
 
-class RelocatedDBFilename:
+class RelocatedDBFilenameFinder:
     def __init__(self, relocated_db_path, native_db_path = None, chat_db = None):
         self._relocated_db_path = relocated_db_path
-        self._native_db_path = native_db_path or NativeDBFilename.native_db_path
-        self._chat_db = chat_db or NativeDBFilename.native_chat_db
+        self._native_db_path = native_db_path or NativeDBFilenameFinder.native_db_path
+        self._chat_db = chat_db or NativeDBFilenameFinder.native_chat_db
 
     def chat_db(self):
         return os.path.expanduser(self._relocated_db_path + '/' + self._chat_db)
@@ -81,19 +82,15 @@ class RelocatedDBFilename:
         else:
             return f
 
-class IPhoneBackupFilename:
+class BaseIPhoneBackupFilenameFinder:
     native_db_path = 'Library/SMS'
     native_chat_db = 'sms.db'
-    native_manifest = 'Manifest.mbdb'
 
-    def __init__(self, backup_path, manifest = None, db_path = None, chat_db = None):
+    def __init__(self, backup_path, db_path = None, chat_db = None):
         self._backup_path = backup_path
-        self._manifest    = manifest or IPhoneBackupFilename.native_manifest
-        self._db_path     = db_path or IPhoneBackupFilename.native_db_path
-        self._chat_db     = chat_db or IPhoneBackupFilename.native_chat_db
-        self._mbdx        = {}
-        self._mbdb        = self.load_manifest()
-        self._ff          = self.make_fast_find(self._mbdb)
+        self._db_path     = db_path or BaseIPhoneBackupFilenameFinder.native_db_path
+        self._chat_db     = chat_db or BaseIPhoneBackupFilenameFinder.native_chat_db
+        self._ff          = None
 
     def chat_db(self):
         return self.filename(self._db_path + '/' + self._chat_db)
@@ -105,14 +102,25 @@ class IPhoneBackupFilename:
         else:
             index = -1
         while(True):
-            iff = self._ff[len_f - index - 1]
-            fsub = f[(index+1):]
-            for ifn in iff:
-                if(fsub == ifn):
-                    return os.path.expanduser(self._backup_path + '/' + iff[ifn])
-            index = f.find('/', index+1)
+            iff = self._ff.get(len_f - index - 1)
+            if(iff):
+                fsub = f[(index+1):]
+                for ifn in iff:
+                    if(fsub == ifn):
+                        return os.path.expanduser(self._backup_path + '/' + iff[ifn])
+                index = f.find('/', index+1)
             if(index < 0):
                 return None
+
+class OldIPhoneBackupFilenameFinder(BaseIPhoneBackupFilenameFinder):
+    native_manifest = 'Manifest.mbdb'
+
+    def __init__(self, backup_path, manifest = None, db_path = None, chat_db = None):
+        BaseIPhoneBackupFilenameFinder.__init__(self, backup_path, db_path, chat_db)
+        self._manifest    = manifest or OldIPhoneBackupFilenameFinder.native_manifest
+        self._mbdx        = {}
+        self._mbdb        = self.load_manifest()
+        self._ff          = self.make_fast_find(self._mbdb)
 
     def make_fast_find(self, mdbd):
         index = dict()
@@ -170,3 +178,46 @@ class IPhoneBackupFilename:
             id = hashlib.sha1(fullpath.encode())
             self._mbdx[fileinfo['start_offset']] = id.hexdigest()
         return mbdb
+
+class NewIPhoneBackupFilenameFinder(BaseIPhoneBackupFilenameFinder):
+    native_manifest = 'Manifest.db'
+
+    def __init__(self, backup_path, manifest = None, db_path = None, chat_db = None):
+        BaseIPhoneBackupFilenameFinder.__init__(self, backup_path, db_path, chat_db)
+        self._manifest    = manifest or NewIPhoneBackupFilenameFinder.native_manifest
+        self._ff          = self.make_fast_find()
+
+    def make_fast_find(self):
+        index = dict()
+        db = sqlite3.connect('file:' + os.path.expanduser( \
+            self._backup_path + '/' + self._manifest) + '?mode=ro', uri=True)
+        query = db.cursor()
+        for entry in query.execute('SELECT relativePath, fileID FROM Files'):
+            fn = entry[0]
+            len_fn = len(fn)
+            if(len_fn not in index):
+                index[len_fn] = dict()
+            index[len_fn][fn] = entry[1][0:2]+'/'+entry[1]
+        return index
+
+class MagicFilenameFinder:
+    def __init__(self, path = NativeDBFilenameFinder.native_db_path):
+        if(path is None or path == NativeDBFilenameFinder.native_db_path):
+            self._deligate = NativeDBFilenameFinder()
+        elif(os.path.isfile(os.path.expanduser(path + '/' + \
+                NativeDBFilenameFinder.native_chat_db))):
+            self._deligate = RelocatedDBFilenameFinder(path)
+        elif(os.path.isfile(os.path.expanduser(path + '/' + \
+                OldIPhoneBackupFilenameFinder.native_manifest))):
+            self._deligate = OldIPhoneBackupFilenameFinder(path)
+        elif(os.path.isfile(os.path.expanduser(path + '/' + \
+                NewIPhoneBackupFilenameFinder.native_manifest))):
+            self._deligate = NewIPhoneBackupFilenameFinder(path)
+        else:
+            raise 'Unknown repository: '+path
+
+    def chat_db(self):
+        return self._deligate.chat_db()
+
+    def filename(self, f):
+        return self._deligate.filename(f)
