@@ -113,21 +113,26 @@ def get_attachment_msg(attachment):
         return None
     path = attachment['filename']
     maintype, subtype = attachment['mime_type'].split('/')
+    fp = None
+    if(path):
+        try:
+            fp = open(path, 'r' if maintype=='text' else 'rb')
+        except:
+            fp = None
+    if(fp is None):
+        return email.mime.text.MIMEText('Attachment "%s" not found on server'%
+            attachment['raw_filename'])
     if maintype == 'text':
-        fp = open(path)
         # Note: we should handle calculating the charset
         msg = email.mime.text.MIMEText(fp.read(), _subtype=subtype)
         fp.close()
     elif maintype == 'image':
-        fp = open(path, 'rb')
         msg = email.mime.image.MIMEImage(fp.read(), _subtype=subtype)
         fp.close()
     elif maintype == 'audio':
-        fp = open(path, 'rb')
         msg = email.mime.audio.MIMEAudio(fp.read(), _subtype=subtype)
         fp.close()
     else:
-        fp = open(path, 'rb')
         msg = email.mime.base.MIMEBase(maintype, subtype)
         msg.set_payload(fp.read())
         fp.close()
@@ -201,7 +206,7 @@ def get_email(message, addressbook, in_reply_to = dict(), max_attachment_size = 
                 asize = len(a.as_bytes())
                 if(asize > max_attachment_size):
                     a = email.mime.text.MIMEText('Attachment "%s" suppressed due to '
-                        'file-size constraints'%message['attachments'][ia]['filename'])
+                        'file-size constraints'%message['attachments'][ia]['raw_filename'])
                     asize = len(a.as_bytes())
                 elif(total_asize + asize > max_attachment_size):
                     outer[Xheader('fragment')] = str(len(emails))

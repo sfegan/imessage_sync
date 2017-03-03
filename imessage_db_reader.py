@@ -22,25 +22,29 @@
 
 import sqlite3
 import os
+import file_finder
 
 date_epoch = 978307200
 sys_base_path = '~/Library/Messages'
 chat_db = 'chat.db'
 
 class IMessageDBReader:
-    def __init__(self, base_path = None):
-        if base_path and base_path[-1] == '/':
-            base_path = base_path[0:-1]
-        self._base_path = base_path
+    def __init__(self, finder = None):
+        if(finder is None):
+            self._finder = file_finder.NativeDBFilename()
+        elif(type(finder) is str):
+            if finder and finder[-1] == '/':
+                finder = finder[0:-1]
+            self._finder = file_finder.RelocatedDBFilename(finder)
+        else:
+            self._finder = finder
         self._conn = self.get_conn()
 
     def base_path(self):
         return self._base_path if self._base_path else sys_base_path
 
     def get_conn(self):
-        conn = sqlite3.connect('file:'
-            + os.path.expanduser(self.base_path() + '/' + chat_db)
-            + '?mode=ro', uri=True)
+        conn = sqlite3.connect('file:' + self._finder.chat_db() + '?mode=ro', uri=True)
         return conn
 
     def get_handles(self):
@@ -83,16 +87,14 @@ class IMessageDBReader:
         query = self._conn.cursor()
         for afile in query.execute('SELECT ROWID, guid, created_date, start_date, '
                 'filename, mime_type, transfer_name, total_bytes FROM attachment'):
-            fn = afile[4]
-            if self._base_path and len(fn)>len(sys_base_path) and \
-                    fn[0:len(sys_base_path)]==sys_base_path:
-                fn = self._base_path + fn[len(sys_base_path):]
+            fn = self._finder.filename(afile[4])
             afiles[afile[0]] = dict(
                 attachment_rowid    = afile[0],
                 guid                = afile[1],
                 created_date        = afile[2] + date_epoch,
                 start_date          = afile[3] + date_epoch,
-                filename            = os.path.expanduser(fn),
+                filename            = fn,
+                raw_filename        = afile[4],
                 mime_type           = afile[5],
                 transfer_name       = afile[6],
                 total_bytes         = afile[7]

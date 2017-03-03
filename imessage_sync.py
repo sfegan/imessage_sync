@@ -25,9 +25,12 @@ import imaplib_connect
 import imessage_sync_config
 import imessage_db_reader
 import imessage_to_mime
+import file_finder
 import addressbook
 import re
 import time
+import os
+import os.path
 
 class IMessageSync:
     def __init__(self, connection, addressbook, config=None, verbose=False):
@@ -132,14 +135,37 @@ class IMessageSync:
             message = messages[id]
             print(self.message_summary(message))
 
-def get_all_messages(base_path = None):
-    db = imessage_db_reader.IMessageDBReader(base_path = base_path)
+def get_all_messages(finder_or_base_path = None):
+    db = imessage_db_reader.IMessageDBReader(finder = finder_or_base_path)
     return db.get_messages()
 
-def sync_all_messages(base_path = None, verbose = True,
+def verify_all_messages(base_path = None, ios = False, verbose = False):
+    config = imessage_sync_config.get_config()
+    if(ios):
+        finder = file_finder.IPhoneBackupFilename(base_path)
+    else:
+        finder = base_path
+    x = get_all_messages(finder_or_base_path = finder)
+    a = addressbook.AddressBook(config = config)
+    sync = IMessageSync(None,a)
+    for ix in x:
+        if(verbose or x[ix]['attachments']):
+            print('Verifying message', sync.message_summary(x[ix]))
+        for ia in x[ix]['attachments']:
+            fn = ia['filename']
+            if(fn):
+                print('-', 'OK' if os.path.isfile(fn) else 'NOT FOUND', ':', fn)
+            else:
+                print('-', 'NO PATH FOUND', ia)
+
+def sync_all_messages(base_path = None, verbose = True, ios = False,
         start_date = None, stop_date = None):
     config = imessage_sync_config.get_config()
-    x = get_all_messages(base_path = base_path)
+    if(ios):
+        finder = file_finder.IPhoneBackupFilename(base_path)
+    else:
+        finder = base_path
+    x = get_all_messages(finder_or_base_path = finder)
     if(start_date):
         xx = dict()
         for ix in filter(lambda ix: x[ix]['date']>=start_date, x):
@@ -158,9 +184,13 @@ def sync_all_messages(base_path = None, verbose = True,
     guids_to_skip = sync.fetch_all_guids()
     sync.upload_all_messages(x, guids_to_skip)
 
-def print_all_messages(base_path = None):
+def print_all_messages(base_path = None, ios = False):
     config = imessage_sync_config.get_config()
-    x = get_all_messages(base_path = base_path)
+    if(ios):
+        finder = file_finder.IPhoneBackupFilename(base_path)
+    else:
+        finder = base_path
+    x = get_all_messages(finder_or_base_path = finder)
     a = addressbook.AddressBook(config = config)
     sync = IMessageSync(None,a)
     sync.print_all_messages(x)
