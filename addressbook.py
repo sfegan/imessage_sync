@@ -1,4 +1,4 @@
-# addressbook.py - Address book
+# addressbook.py - Address book - lookup names and emails for phobe numbers
 #
 # Stephen Fegan - sfegan@gmail.com - 2017-02-27
 #
