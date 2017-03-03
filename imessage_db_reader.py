@@ -29,13 +29,9 @@ sys_base_path = '~/Library/Messages'
 chat_db = 'chat.db'
 
 class IMessageDBReader:
-    def __init__(self, finder = None):
-        if(finder is None):
-            self._finder = file_finder.NativeDBFilename()
-        elif(type(finder) is str):
-            if finder and finder[-1] == '/':
-                finder = finder[0:-1]
-            self._finder = file_finder.RelocatedDBFilename(finder)
+    def __init__(self, finder_or_base_path = None):
+        if finder_or_base_path is None or type(finder_or_base_path) is str:
+            self._finder = file_finder.MagicFilenameFinder(finder_or_base_path)
         else:
             self._finder = finder
         self._conn = self.get_conn()

@@ -202,6 +202,8 @@ class NewIPhoneBackupFilenameFinder(BaseIPhoneBackupFilenameFinder):
 
 class MagicFilenameFinder:
     def __init__(self, path = NativeDBFilenameFinder.native_db_path):
+        if type(path) is str and len(path)>0 and path[-1] == '/':
+            path = path[0:-1]
         if(path is None or path == NativeDBFilenameFinder.native_db_path):
             self._deligate = NativeDBFilenameFinder()
         elif(os.path.isfile(os.path.expanduser(path + '/' + \

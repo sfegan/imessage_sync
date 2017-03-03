@@ -136,16 +136,12 @@ class IMessageSync:
             print(self.message_summary(message))
 
 def get_all_messages(finder_or_base_path = None):
-    db = imessage_db_reader.IMessageDBReader(finder = finder_or_base_path)
+    db = imessage_db_reader.IMessageDBReader(finder_or_base_path = finder_or_base_path)
     return db.get_messages()
 
-def verify_all_messages(base_path = None, ios = False, verbose = False):
+def verify_all_messages(finder_or_base_path = None, verbose = False):
     config = imessage_sync_config.get_config()
-    if(ios):
-        finder = file_finder.IPhoneBackupFilename(base_path)
-    else:
-        finder = base_path
-    x = get_all_messages(finder_or_base_path = finder)
+    x = get_all_messages(finder_or_base_path = finder_or_base_path)
     a = addressbook.AddressBook(config = config)
     sync = IMessageSync(None,a)
     for ix in x:
@@ -158,14 +154,10 @@ def verify_all_messages(base_path = None, ios = False, verbose = False):
             else:
                 print('-', 'NO PATH FOUND', ia)
 
-def sync_all_messages(base_path = None, verbose = True, ios = False,
+def sync_all_messages(finder_or_base_path = None, verbose = True,
         start_date = None, stop_date = None):
     config = imessage_sync_config.get_config()
-    if(ios):
-        finder = file_finder.IPhoneBackupFilename(base_path)
-    else:
-        finder = base_path
-    x = get_all_messages(finder_or_base_path = finder)
+    x = get_all_messages(finder_or_base_path = finder_or_base_path)
     if(start_date):
         xx = dict()
         for ix in filter(lambda ix: x[ix]['date']>=start_date, x):
@@ -184,13 +176,9 @@ def sync_all_messages(base_path = None, verbose = True, ios = False,
     guids_to_skip = sync.fetch_all_guids()
     sync.upload_all_messages(x, guids_to_skip)
 
-def print_all_messages(base_path = None, ios = False):
+def print_all_messages(finder_or_base_path = None):
     config = imessage_sync_config.get_config()
-    if(ios):
-        finder = file_finder.IPhoneBackupFilename(base_path)
-    else:
-        finder = base_path
-    x = get_all_messages(finder_or_base_path = finder)
+    x = get_all_messages(finder_or_base_path = finder_or_base_path)
     a = addressbook.AddressBook(config = config)
     sync = IMessageSync(None,a)
     sync.print_all_messages(x)
