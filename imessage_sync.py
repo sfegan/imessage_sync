@@ -136,8 +136,20 @@ class IMessageSync:
             print(self.message_summary(message))
 
 def get_all_messages(finder_or_base_path = None):
-    db = imessage_db_reader.IMessageDBReader(finder_or_base_path = finder_or_base_path)
-    return db.get_messages()
+    if(type(finder_or_base_path) is list):
+        all_messages = dict()
+        all_guid = set()
+        for ifobp, fobp in enumerate(finder_or_base_path):
+            db = imessage_db_reader.IMessageDBReader(finder_or_base_path = fobp)
+            messages = db.get_messages()
+            for im in messages:
+                if(messages[im]['guid'] not in all_guid):
+                    all_messages[str(ifobp)+'_'+str(im)] = messages[im]
+                    all_guid.add(messages[im]['guid'])
+        return all_messages
+    else:
+        db = imessage_db_reader.IMessageDBReader(finder_or_base_path = finder_or_base_path)
+        return db.get_messages()
 
 def verify_all_messages(finder_or_base_path = None, verbose = False):
     config = imessage_sync_config.get_config()
@@ -182,3 +194,15 @@ def print_all_messages(finder_or_base_path = None):
     a = addressbook.AddressBook(config = config)
     sync = IMessageSync(None,a)
     sync.print_all_messages(x)
+
+def recipient_histogram(finder_or_base_path = None):
+    config = imessage_sync_config.get_config()
+    x = get_all_messages(finder_or_base_path = finder_or_base_path)
+    a = addressbook.AddressBook(config = config)
+    sync = IMessageSync(None,a)
+    count = dict()
+    for ix in x:
+        if(x[ix]['chat']):
+            n = imessage_to_mime.get_chat_names(x[ix]['chat'], a)
+            count[n] = count.get(n,0) + 1
+    return count

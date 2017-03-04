@@ -64,7 +64,7 @@ class NativeDBFilenameFinder:
         return os.path.expanduser(self._db_path + '/' + self._chat_db)
 
     def filename(self, f):
-        return f
+        return os.path.expanduser(f)
 
 class RelocatedDBFilenameFinder:
     def __init__(self, relocated_db_path, native_db_path = None, chat_db = None):
@@ -78,9 +78,9 @@ class RelocatedDBFilenameFinder:
     def filename(self, f):
         if len(f)>len(self._native_db_path) and \
                 f[0:len(self._native_db_path)]==self._native_db_path:
-            return self._relocated_db_path + f[len(self._native_db_path):]
+            return os.path.expanduser(self._relocated_db_path + f[len(self._native_db_path):])
         else:
-            return f
+            return os.path.expanduser(f)
 
 class BaseIPhoneBackupFilenameFinder:
     native_db_path = 'Library/SMS'
@@ -108,7 +108,7 @@ class BaseIPhoneBackupFilenameFinder:
                 for ifn in iff:
                     if(fsub == ifn):
                         return os.path.expanduser(self._backup_path + '/' + iff[ifn])
-                index = f.find('/', index+1)
+            index = f.find('/', index+1)
             if(index < 0):
                 return None
 
