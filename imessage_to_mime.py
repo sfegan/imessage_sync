@@ -52,12 +52,13 @@ def get_chat_contacts(chat):
     return ','.join(map(lambda h: h['contact'], chat['handles']))
 
 def get_chat_names(chat, addressbook):
-    s = get_handle_name(chat['handles'][0], addressbook)
-    if(len(chat['handles']) > 1):
-        for h in chat['handles'][1:-1]:
-            s += ', ' + get_handle_name(h, addressbook)
-        s += ' and ' + get_handle_name(chat['handles'][-1], addressbook)
-    return s
+    names = sorted(map(lambda h: get_handle_name(h, addressbook), chat['handles']))
+    if(len(names) > 1):
+        s = ', '.join(names[0:-1])
+        s += ' and ' + names[-1]
+        return s
+    else:
+        return names[0]
 
 def get_subject(message, addressbook):
     return 'Chat with ' + get_chat_names(message['chat'], addressbook)
@@ -96,8 +97,9 @@ def get_rfc3501_id(id):
 def get_message_id(message):
     return get_rfc3501_id(message['guid'])
 
-def get_chat_id(chat):
-    return get_rfc3501_id(get_chat_contacts(chat))
+def get_chat_id(chat, addressbook):
+    id = hashlib.sha1(get_chat_names(chat, addressbook).encode()).hexdigest()
+    return get_rfc3501_id(id)
 
 def get_text_msg(message):
     text = message['text']
@@ -164,7 +166,7 @@ def set_headers(outer, message, addressbook, in_reply_to):
     outer['From']       = email.header.Header(get_from(message, addressbook))
     outer['Date']       = email.utils.formatdate(message['date'])
     outer['Message-ID'] = get_message_id(message)
-    chat_id = get_chat_id(message['chat'])
+    chat_id = get_chat_id(message['chat'], addressbook)
     if(chat_id in in_reply_to):
         outer['In-Reply-To']             = in_reply_to[chat_id]
         outer['References']              = chat_id + ' ' + in_reply_to[chat_id]
@@ -237,6 +239,6 @@ def get_email(message, addressbook, in_reply_to = dict(), max_attachment_size = 
         set_headers(outer, message, addressbook, in_reply_to)
     return outer
 
-def update_chat_thread_ids(message, in_reply_to):
-    chat_id = get_chat_id(message['chat'])
+def update_chat_thread_ids(message, addressbook, in_reply_to):
+    chat_id = get_chat_id(message['chat'], addressbook)
     in_reply_to[chat_id] = get_message_id(message)

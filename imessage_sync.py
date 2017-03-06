@@ -126,7 +126,7 @@ class IMessageSync:
                 good, status = self.upload_message(message, in_reply_to)
             elif self.verbose:
                 print('Skipping message', self.message_summary(message))
-            imessage_to_mime.update_chat_thread_ids(message, in_reply_to)
+            imessage_to_mime.update_chat_thread_ids(message, self.addressbook, in_reply_to)
 
     def print_all_messages(self, messages):
         in_reply_to = dict()
