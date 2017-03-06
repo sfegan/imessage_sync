@@ -126,7 +126,7 @@ class AddressBook:
                     ea = a['email_addresses'][iea]
                     if(ea not in lu):
                         lu[ea] = dict()
-                    lu[ea]['email'] = ea
+                    lu[ea]['email'] = email or ea
                     if name:
                         lu[ea]['name'] = name
         return lu
