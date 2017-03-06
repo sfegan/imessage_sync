@@ -92,7 +92,7 @@ class IMessageSync:
         s+= ' (' + time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime(message['date'])) + ')'
         if before_gid:
             s+= ', ' + before_gid
-        s += ', index: %d'%message['message_rowid']
+        s += ', index: %s'%str(message['message_rowid'])
         s += ', guid: ' + message['guid']
         return s
 
@@ -103,7 +103,6 @@ class IMessageSync:
             emails = [ emails ]
         for iemail, email_msg in enumerate(emails):
             email_str = email_msg.as_bytes()
-
             if self.verbose:
                 info = 'size: %d'%len(email_str)
                 if(len(emails)>1):
@@ -135,17 +134,32 @@ class IMessageSync:
             message = messages[id]
             print(self.message_summary(message))
 
+def num_attachments(m):
+    nfound = 0
+    for a in m['attachments']:
+        fn = a['filename']
+        if(fn and os.path.isfile(fn)):
+            nfound += 1
+    return nfound
+
+def best_message_copy(m1, m2):
+    return m1 if num_attachments(m1)>=num_attachments(m2) else m2
+
 def get_all_messages(finder_or_base_path = None):
     if(type(finder_or_base_path) is list):
-        all_messages = dict()
-        all_guid = set()
+        all_guid = dict()
         for ifobp, fobp in enumerate(finder_or_base_path):
             db = imessage_db_reader.IMessageDBReader(finder_or_base_path = fobp)
             messages = db.get_messages()
-            for im in messages:
-                if(messages[im]['guid'] not in all_guid):
-                    all_messages[str(ifobp)+'_'+str(im)] = messages[im]
-                    all_guid.add(messages[im]['guid'])
+            for im, m in messages.items():
+                m['message_rowid'] = str(ifobp)+'_'+str(im)
+                if(m['guid'] not in all_guid):
+                    all_guid[m['guid']] = m
+                else:
+                    all_guid[m['guid']] = best_message_copy(all_guid[m['guid']], m)
+        all_messages = dict()
+        for m in all_guid.values():
+            all_messages[m['message_rowid']] = m
         return all_messages
     else:
         db = imessage_db_reader.IMessageDBReader(finder_or_base_path = finder_or_base_path)
@@ -156,15 +170,32 @@ def verify_all_messages(finder_or_base_path = None, verbose = False):
     x = get_all_messages(finder_or_base_path = finder_or_base_path)
     a = addressbook.AddressBook(config = config)
     sync = IMessageSync(None,a)
-    for ix in x:
-        if(verbose or x[ix]['attachments']):
+    nfound = 0
+    nmissing = 0
+    for ix in sorted(x, key=lambda ix: x[ix]['date']):
+        if(verbose):
             print('Verifying message', sync.message_summary(x[ix]))
+        all_found = True
         for ia in x[ix]['attachments']:
             fn = ia['filename']
             if(fn):
-                print('-', 'OK' if os.path.isfile(fn) else 'NOT FOUND', ':', fn)
+                if os.path.isfile(fn):
+                    nfound += 1
+                    if(verbose):
+                        print('- OK :', fn)
+                else:
+                    if(all_found and not verbose):
+                        print('Verifying message', sync.message_summary(x[ix]))
+                    nmissing + 1
+                    all_found = False
+                    print('- NOT FOUND :', fn)
             else:
-                print('-', 'NO PATH FOUND', ia)
+                if(all_found and not verbose):
+                    print('Verifying message', sync.message_summary(x[ix]))
+                nmissing += 1
+                all_found = False
+                print('- NO PATH FOUND :', ia)
+    print('Found:', nfound, '; not found:', nmissing)
 
 def sync_all_messages(finder_or_base_path = None, verbose = True,
         start_date = None, stop_date = None):

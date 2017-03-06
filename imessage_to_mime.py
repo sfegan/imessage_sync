@@ -28,12 +28,14 @@ import email.mime.multipart
 import email.utils
 import email.encoders
 import email.charset
+import email.header
 import email
 import hashlib
 import copy
 #import BytesIO
 
-#email.charset.Charset('utf-8').body_encoding = email.charset.QP
+email.charset.Charset('utf-8').body_encoding = email.charset.QP
+email.charset.Charset('utf-8').header_encoding = email.charset.QP
 
 Xheader_base = 'X-imessagesync-'
 def Xheader(ext): return Xheader_base + ext
@@ -157,9 +159,9 @@ def is_valid(message):
         (message['text'] is not None or len(message['attachments'])>0))
 
 def set_headers(outer, message, addressbook, in_reply_to):
-    outer['Subject']    = get_subject(message, addressbook)
-    outer['To']         = get_to(message, addressbook)
-    outer['From']       = get_from(message, addressbook)
+    outer['Subject']    = email.header.Header(get_subject(message, addressbook))
+    outer['To']         = email.header.Header(get_to(message, addressbook))
+    outer['From']       = email.header.Header(get_from(message, addressbook))
     outer['Date']       = email.utils.formatdate(message['date'])
     outer['Message-ID'] = get_message_id(message)
     chat_id = get_chat_id(message['chat'])
