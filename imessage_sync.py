@@ -41,6 +41,8 @@ class IMessageSync:
         self.mailbox      = config.get('server', 'mailbox', fallback='iMessage')
         self.max_attach   = int(config.get('server', 'max_attachment_size', fallback=25000000))
         self.verbose      = verbose
+        if(not self.connect_to_mailbox()):
+            return None
 
     def mailbox_size(self):
         resp, data = self.connection.status(self.mailbox,'(MESSAGES)')
@@ -58,10 +60,10 @@ class IMessageSync:
         return True
 
     def fetch_all_guids(self, block_size=1000):
-        if(not self.connect_to_mailbox()):
-            return None
         i = 0
         guids = set()
+        if self.verbose:
+            print("Querying previously uploaded messages",end='',flush=True)
         while(True):
             qrange = '%d:%d'%(i+1,i+block_size)
             qfilter = 'BODY.PEEK[HEADER.FIELDS (%s)]'%imessage_to_mime.Xheader_guid
@@ -78,7 +80,9 @@ class IMessageSync:
                     guid = re.match(r'^.*:\s+([^\s]*)\s*$',line[1].decode())
                     if(guid):
                         guids.add(guid.groups()[0])
+            print('.',end='',flush=True)
             i += block_size
+        print('',flush=True)
         return guids
 
     def message_summary(self, message, before_gid = None):
@@ -212,7 +216,7 @@ def sync_all_messages(finder_or_base_path = None, verbose = True,
             xx[ix] = x[ix]
         x = xx
     if(verbose):
-        print('Processing %d messages'%len(x))
+        print('Synching %d messages'%len(x))
     c = imaplib_connect.open_connection(config = config, verbose = verbose)
     a = addressbook.AddressBook(config = config)
     sync = IMessageSync(c,a,verbose=verbose)
