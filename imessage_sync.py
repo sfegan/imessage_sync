@@ -43,7 +43,7 @@ class IMessageSync:
         self.verbose      = verbose
 
     def mailbox_size(self):
-        resp, data = self.connection.status('iMessage','(MESSAGES)')
+        resp, data = self.connection.status(self.mailbox,'(MESSAGES)')
         if(resp != 'OK'):
             return None
         mb, el, n = re.match(r'"(.*)" \((.*) (.*)\)',data[0].decode()).groups()
