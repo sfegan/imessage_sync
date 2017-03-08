@@ -80,9 +80,68 @@ class IMessageSync:
                     guid = re.match(r'^.*:\s+([^\s]*)\s*$',line[1].decode())
                     if(guid):
                         guids.add(guid.groups()[0])
-            print('.',end='',flush=True)
+            if self.verbose:
+                print('.',end='',flush=True)
             i += block_size
-        print('',flush=True)
+        if self.verbose:
+            print('',flush=True)
+        return guids
+
+    def fetch_all_guids_since(self, start_date, block_size=1000):
+        start_date = time.strftime('%d-%b-%Y',time.gmtime(start_date-86400))
+        if self.verbose:
+            print('Querying messages uploaded since %s'%start_date,end='',flush=True)
+        resp, data = self.connection.search(None, 'SENTSINCE %s'%start_date)
+        if(resp != 'OK'):
+            if self.verbose:
+                print('',flush=True)
+            print(resp, data[0].decode())
+            return None
+        if(not data[0]):
+            if self.verbose:
+                print('',flush=True)
+            return set()
+        first_id = None
+        last_id = None
+        all_id = []
+        num_id = 0
+        for cur_id in map(int, data[0].decode().split(' ')):
+            if(not first_id):
+                first_id = cur_id
+            else:
+                if(cur_id != last_id+1):
+                    all_id.append('%d'%first_id if first_id==last_id else \
+                        '%d:%d'%(first_id,last_id))
+                    first_id = cur_id
+            last_id = cur_id
+            num_id += 1
+            if(num_id == block_size):
+                all_id.append('%d'%first_id if first_id==last_id else \
+                    '%d:%d'%(first_id,last_id))
+                first_id = None
+                last_id = None
+                num_id = 0
+        if(first_id):
+            all_id.append('%d'%first_id if first_id==last_id else \
+                '%d:%d'%(first_id,last_id))
+        guids = set()
+        for qrange in all_id:
+            qfilter = 'BODY.PEEK[HEADER.FIELDS (%s)]'%imessage_to_mime.Xheader_guid
+            #print(qrange, qfilter)
+            resp, data = self.connection.fetch(qrange, qfilter)
+            #print (resp, len(data))
+            if(resp != 'OK'):
+                print(resp, data[0].decode())
+                return None
+            for line in data:
+                if(type(line) == tuple):
+                    guid = re.match(r'^.*:\s+([^\s]*)\s*$',line[1].decode())
+                    if(guid):
+                        guids.add(guid.groups()[0])
+            if self.verbose:
+                print('.',end='',flush=True)
+        if self.verbose:
+            print('',flush=True)
         return guids
 
     def message_summary(self, message, before_gid = None):
@@ -220,7 +279,8 @@ def sync_all_messages(finder_or_base_path = None, verbose = True,
     c = imaplib_connect.open_connection(config = config, verbose = verbose)
     a = addressbook.AddressBook(config = config)
     sync = IMessageSync(c,a,verbose=verbose)
-    guids_to_skip = sync.fetch_all_guids()
+    guids_to_skip = sync.fetch_all_guids_since( \
+        min(map(lambda ix: ix['date'], x.values())))
     sync.upload_all_messages(x, guids_to_skip)
 
 def print_all_messages(finder_or_base_path = None):
