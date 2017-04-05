@@ -216,7 +216,7 @@ class MagicFilenameFinder:
                 NewIPhoneBackupFilenameFinder.native_manifest))):
             self._deligate = NewIPhoneBackupFilenameFinder(path)
         else:
-            raise 'Unknown repository: '+path
+            raise Exception('Unknown repository: '+path)
 
     def chat_db(self):
         return self._deligate.chat_db()
