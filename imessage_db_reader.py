@@ -83,7 +83,7 @@ class IMessageDBReader:
         query = self._conn.cursor()
         for afile in query.execute('SELECT ROWID, guid, created_date, start_date, '
                 'filename, mime_type, transfer_name, total_bytes FROM attachment'):
-            fn = self._finder.filename(afile[4])
+            fn = afile[4] and self._finder.filename(afile[4])
             afiles[afile[0]] = dict(
                 attachment_rowid    = afile[0],
                 guid                = afile[1],
