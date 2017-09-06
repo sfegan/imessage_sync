@@ -62,8 +62,7 @@ class IMessageSync:
     def fetch_all_guids(self, block_size=1000):
         i = 0
         guids = set()
-        if self.verbose:
-            print("Querying previously uploaded messages",end='',flush=True)
+        print("Querying previously uploaded messages",end='',flush=True)
         while(True):
             qrange = '%d:%d'%(i+1,i+block_size)
             qfilter = 'BODY.PEEK[HEADER.FIELDS (%s)]'%imessage_to_mime.Xheader_guid
@@ -80,26 +79,21 @@ class IMessageSync:
                     guid = re.match(r'^.*:\s+([^\s]*)\s*$',line[1].decode())
                     if(guid):
                         guids.add(guid.groups()[0])
-            if self.verbose:
-                print('.',end='',flush=True)
+            print('.',end='',flush=True)
             i += block_size
-        if self.verbose:
-            print('',flush=True)
+        print('',flush=True)
         return guids
 
     def fetch_all_guids_since(self, start_date, block_size=1000):
         start_date = time.strftime('%d-%b-%Y',time.gmtime(start_date-86400))
-        if self.verbose:
-            print('Querying messages uploaded since %s'%start_date,end='',flush=True)
+        print('Querying messages uploaded since %s'%start_date,end='',flush=True)
         resp, data = self.connection.search(None, 'SENTSINCE %s'%start_date)
         if(resp != 'OK'):
-            if self.verbose:
-                print('',flush=True)
+            print('',flush=True)
             print(resp, data[0].decode())
             return None
         if(not data[0]):
-            if self.verbose:
-                print('',flush=True)
+            print('',flush=True)
             return set()
         first_id = None
         last_id = None
@@ -138,10 +132,8 @@ class IMessageSync:
                     guid = re.match(r'^.*:\s+([^\s]*)\s*$',line[1].decode())
                     if(guid):
                         guids.add(guid.groups()[0])
-            if self.verbose:
-                print('.',end='',flush=True)
-        if self.verbose:
-            print('',flush=True)
+            print('.',end='',flush=True)
+        print('',flush=True)
         return guids
 
     def message_summary(self, message, before_gid = None):
@@ -166,7 +158,7 @@ class IMessageSync:
             emails = [ emails ]
         for iemail, email_msg in enumerate(emails):
             email_str = email_msg.as_bytes()
-            if self.verbose:
+            if True or self.verbose:
                 info = 'size: %d'%len(email_str)
                 if(len(emails)>1):
                     info = 'frag: %d/%d, '%(iemail+1,len(emails)) + info
@@ -179,14 +171,17 @@ class IMessageSync:
                 print('  ',resp,data)
         return True, 'OK'
 
-    def upload_all_messages(self, messages, guids_to_skip = set()):
+    def upload_all_messages(self, messages, guids_to_skip = set(), do_upload = True):
         in_reply_to = dict()
         for id in sorted(messages, key=lambda im: messages[im]['date']):
             message = messages[id]
             if(not imessage_to_mime.is_valid(message)):
                 continue
             if(not guids_to_skip or message['guid'] not in guids_to_skip):
-                good, status = self.upload_message(message, in_reply_to)
+                if(do_upload):
+                    good, status = self.upload_message(message, in_reply_to)
+                elif True or self.verbose:
+                    print('Not uploading message', self.message_summary(message))
             elif self.verbose:
                 print('Skipping message', self.message_summary(message))
             imessage_to_mime.update_chat_thread_ids(message, self.addressbook, in_reply_to)
@@ -261,7 +256,7 @@ def verify_all_messages(finder_or_base_path = None, verbose = False):
     print('Found:', nfound, '; not found:', nmissing)
 
 def sync_all_messages(finder_or_base_path = None, verbose = True,
-        start_date = None, stop_date = None):
+        start_date = None, stop_date = None, do_upload = True):
     config = imessage_sync_config.get_config()
     x = get_all_messages(finder_or_base_path = finder_or_base_path)
     if(start_date):
@@ -274,14 +269,23 @@ def sync_all_messages(finder_or_base_path = None, verbose = True,
         for ix in filter(lambda ix: x[ix]['date']<=stop_date, x):
             xx[ix] = x[ix]
         x = xx
-    if(verbose):
-        print('Synching %d messages'%len(x))
+    print('Found %d messages in iMessages database(s)'%len(x))
     c = imaplib_connect.open_connection(config = config, verbose = verbose)
     a = addressbook.AddressBook(config = config)
     sync = IMessageSync(c,a,verbose=verbose)
     guids_to_skip = sync.fetch_all_guids_since( \
         min(map(lambda ix: ix['date'], x.values())))
-    sync.upload_all_messages(x, guids_to_skip)
+
+    nupload = 0
+    for id in sorted(x, key=lambda im: x[im]['date']):
+        message = x[id]
+        if(not imessage_to_mime.is_valid(message)):
+            continue
+        if(not guids_to_skip or message['guid'] not in guids_to_skip):
+            nupload += 1
+    print('Number of new messages to upload : %d'%nupload)
+
+    sync.upload_all_messages(x, guids_to_skip, do_upload=do_upload)
 
 def print_all_messages(finder_or_base_path = None):
     config = imessage_sync_config.get_config()

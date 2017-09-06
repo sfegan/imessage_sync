@@ -194,6 +194,8 @@ class NewIPhoneBackupFilenameFinder(BaseIPhoneBackupFilenameFinder):
         query = db.cursor()
         for entry in query.execute('SELECT relativePath, fileID FROM Files'):
             fn = entry[0]
+            if fn is None:
+                continue
             len_fn = len(fn)
             if(len_fn not in index):
                 index[len_fn] = dict()
@@ -202,9 +204,9 @@ class NewIPhoneBackupFilenameFinder(BaseIPhoneBackupFilenameFinder):
 
 class MagicFilenameFinder:
     def __init__(self, path = NativeDBFilenameFinder.native_db_path):
-        if type(path) is str and len(path)>0 and path[-1] == '/':
+        if type(path) is str and len(path)>1 and path[-1] == '/':
             path = path[0:-1]
-        if(path is None or path == NativeDBFilenameFinder.native_db_path):
+        if(path is None or len(path)==0 or path == NativeDBFilenameFinder.native_db_path):
             self._deligate = NativeDBFilenameFinder()
         elif(os.path.isfile(os.path.expanduser(path + '/' + \
                 NativeDBFilenameFinder.native_chat_db))):
