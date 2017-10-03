@@ -24,7 +24,14 @@ import sqlite3
 import os
 import file_finder
 
-date_epoch = 978307200
+
+def make_date(x):
+    date_epoch =  978307200
+    if(x<10000000000):
+        return x + date_epoch
+    else:
+        return x/1000000000 + date_epoch
+
 sys_base_path = '~/Library/Messages'
 chat_db = 'chat.db'
 
@@ -87,8 +94,8 @@ class IMessageDBReader:
             afiles[afile[0]] = dict(
                 attachment_rowid    = afile[0],
                 guid                = afile[1],
-                created_date        = afile[2] + date_epoch,
-                start_date          = afile[3] + date_epoch,
+                created_date        = make_date(afile[2]),
+                start_date          = make_date(afile[3]),
                 filename            = fn,
                 raw_filename        = afile[4],
                 mime_type           = afile[5],
@@ -115,9 +122,9 @@ class IMessageDBReader:
                 service                    = msg[6],
                 account                    = msg[7],
                 account_guid               = msg[8],
-                date                       = (msg[9]+date_epoch) if msg[9]>0 else None,
-                date_read                  = (msg[10]+date_epoch) if msg[10]>0 else None,
-                date_delivered             = (msg[11]+date_epoch) if msg[11]>0 else None,
+                date                       = make_date(msg[9]) if msg[9]>0 else None,
+                date_read                  = make_date(msg[10]) if msg[10]>0 else None,
+                date_delivered             = make_date(msg[11]) if msg[11]>0 else None,
                 is_delivered               = msg[12],
                 is_finished                = msg[13],
                 is_from_me                 = msg[14],
