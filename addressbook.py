@@ -36,7 +36,7 @@ class AddressBook:
         if(not config):
             config = imessage_sync_config.get_config()
 
-        self._me = config.get('identity', 'address')
+        self._me = [config.get('identity', 'name'), config.get('identity', 'address')]
         self._cc = config.get('identity', 'default_country', fallback='US')
         self._ab_base_dir = ab_base_dir or \
             config.get('address_book', 'base_dir', fallback=sys_ab_base_dir)
@@ -134,7 +134,7 @@ class AddressBook:
     def lookup_email(self, handle):
         c = handle['contact']
         email = self._lu.get(c, dict()).get('email') or c+'@unknown.email.local'
-        return self.lookup_name(handle) + ' <' + email + '>'
+        return [self.lookup_name(handle), email]
 
     def lookup_name(self, handle):
         c = handle['contact']

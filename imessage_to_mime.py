@@ -63,20 +63,34 @@ def get_chat_names(chat, addressbook):
 def get_subject(message, addressbook):
     return 'Chat with ' + get_chat_names(message['chat'], addressbook)
 
+def make_email_header(all_emails):
+    h = email.header.Header()
+    if(type(all_emails[0]) is not list):
+        all_emails = [ all_emails ]
+    first = True
+    for one_email in all_emails:
+        if(not first):
+            h.append(', ')
+        first = False
+        h.append(one_email[0])
+        h.append('<' + one_email[1] + '>')
+    return h
+
 def get_from(message, addressbook):
     if(message['is_from_me']):
-        return addressbook.me()
+        return make_email_header(addressbook.me())
     elif(not message['handle'] is None):
-        return addressbook.lookup_email(message['handle'])
+        return make_email_header(addressbook.lookup_email(message['handle']))
     elif(not message['other_handle'] is None):
-        return addressbook.lookup_email(message['other_handle'])
+        return make_email_header(addressbook.lookup_email(message['other_handle']))
     else:
-        return 'unknown@unknown.email'
+        return make_email_header(['Unknown person', 'unknown@unknown.email'])
     pass
 
 def get_to(message, addressbook):
+    th = []
     if(message['is_from_me']):
-        return ', '.join(map(addressbook.lookup_email, message['chat']['handles']))
+        th = list(map(addressbook.lookup_email, message['chat']['handles']))
     else:
         fh = None
         if(not message['handle'] is None):
@@ -88,8 +102,7 @@ def get_to(message, addressbook):
             for to in map(addressbook.lookup_email,
                     filter(lambda h: h != fh, message['chat']['handles'])):
                 th.append(to)
-        return ', '.join(th)
-    pass
+    return make_email_header(th)
 
 def get_rfc3501_id(id):
     return '<'+id+message_id_fqdn+'>'
@@ -162,8 +175,8 @@ def is_valid(message):
 
 def set_headers(outer, message, addressbook, in_reply_to):
     outer['Subject']    = email.header.Header(get_subject(message, addressbook))
-    outer['To']         = email.header.Header(get_to(message, addressbook))
-    outer['From']       = email.header.Header(get_from(message, addressbook))
+    outer['To']         = get_to(message, addressbook)
+    outer['From']       = get_from(message, addressbook)
     outer['Date']       = email.utils.formatdate(message['date'])
     outer['Message-ID'] = get_message_id(message)
     chat_id = get_chat_id(message['chat'], addressbook)
