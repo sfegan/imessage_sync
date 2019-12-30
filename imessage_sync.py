@@ -270,7 +270,7 @@ def sync_all_messages(finder_or_base_path = None, verbose = True,
             xx[ix] = x[ix]
         x = xx
     if(len(x) == 0):
-        print('Found no messages in iMessages database(s)')
+        print('Found no messages in iMessages database(s), exiting')
         return
     print('Found %d messages in iMessages database(s)'%len(x))
     c = imaplib_connect.open_connection(config = config, verbose = verbose)
@@ -286,6 +286,9 @@ def sync_all_messages(finder_or_base_path = None, verbose = True,
             continue
         if(not guids_to_skip or message['guid'] not in guids_to_skip):
             nupload += 1
+    if(nupload == 0):
+        print('No new messages to upload, exiting')
+        return
     print('Number of new messages to upload : %d'%nupload)
 
     sync.upload_all_messages(x, guids_to_skip, do_upload=do_upload)
