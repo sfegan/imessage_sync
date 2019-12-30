@@ -269,6 +269,9 @@ def sync_all_messages(finder_or_base_path = None, verbose = True,
         for ix in filter(lambda ix: x[ix]['date']<=stop_date, x):
             xx[ix] = x[ix]
         x = xx
+    if(len(x) == 0):
+        print('Found no messages in iMessages database(s)')
+        return
     print('Found %d messages in iMessages database(s)'%len(x))
     c = imaplib_connect.open_connection(config = config, verbose = verbose)
     a = addressbook.AddressBook(config = config)
