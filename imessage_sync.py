@@ -33,7 +33,7 @@ import os
 import os.path
 
 class IMessageSync:
-    def __init__(self, connection, addressbook, config=None, verbose=False):
+    def __init__(self, connection, addressbook, config=None, verbose=False, sync_time=time.time()):
         if(not config):
             config = imessage_sync_config.get_config()
         self.connection   = connection
@@ -41,22 +41,26 @@ class IMessageSync:
         self.mailbox      = config.get('server', 'mailbox', fallback='iMessage')
         self.max_attach   = int(config.get('server', 'max_attachment_size', fallback=25000000))
         self.verbose      = verbose
-        if(not self.connect_to_mailbox()):
+        self.mailbox_size = None
+        self.sync_time    = sync_time
+        if(self.connection and not self.connect_to_mailbox()):
             return None
 
-    def mailbox_size(self):
+    def get_mailbox_size(self):
         resp, data = self.connection.status(self.mailbox,'(MESSAGES)')
         if(resp != 'OK'):
             return None
         mb, el, n = re.match(r'"(.*)" \((.*) (.*)\)',data[0].decode()).groups()
-        return int(n)
+        self.mailbox_size = int(n)
+        return self.mailbox_size
 
     def connect_to_mailbox(self):
         resp, data = self.connection.create(self.mailbox)
         resp, data = self.connection.select(self.mailbox)
         if(resp != 'OK'):
-            print(b.decode())
+            print(data[0].decode())
             return False
+        self.mailbox_size = int(data[0].decode())
         return True
 
     def fetch_all_guids(self, block_size=1000):
@@ -153,7 +157,7 @@ class IMessageSync:
 
     def upload_message(self, message, in_reply_to = dict()):
         emails = imessage_to_mime.get_email(message, self.addressbook, in_reply_to,
-            max_attachment_size = self.max_attach)
+            max_attachment_size = self.max_attach, sync_time = self.sync_time)
         if(type(emails) is not list):
             emails = [ emails ]
         for iemail, email_msg in enumerate(emails):
@@ -169,6 +173,8 @@ class IMessageSync:
                 imaplib.Time2Internaldate(message['date']), email_str)
             if self.verbose:
                 print('  ',resp,data)
+            if(resp == 'OK'):
+                self.mailbox_size += 1
         return True, 'OK'
 
     def upload_all_messages(self, messages, guids_to_skip = set(), do_upload = True):
@@ -191,6 +197,17 @@ class IMessageSync:
         for id in sorted(messages, key=lambda im: messages[im]['date']):
             message = messages[id]
             print(self.message_summary(message))
+
+    def full_message_email(self, message, in_reply_to = dict()):
+        emails = imessage_to_mime.get_email(message, self.addressbook, in_reply_to,
+            max_attachment_size = self.max_attach, sync_time = self.sync_time)
+        if(type(emails) is not list):
+            emails = [ emails ]
+        emails_str = []
+        for iemail, email_msg in enumerate(emails):
+            email_str = email_msg.as_bytes()
+            emails_str.append(email_str)
+        return emails_str
 
 def num_attachments(m):
     nfound = 0
@@ -258,6 +275,7 @@ def verify_all_messages(finder_or_base_path = None, verbose = False):
 def sync_all_messages(finder_or_base_path = None, verbose = True,
         start_date = None, stop_date = None, do_upload = True):
     config = imessage_sync_config.get_config()
+    sync_time = time.time()
     x = get_all_messages(finder_or_base_path = finder_or_base_path)
     if(start_date):
         xx = dict()
@@ -275,7 +293,7 @@ def sync_all_messages(finder_or_base_path = None, verbose = True,
     print('Found %d messages in iMessages database(s)'%len(x))
     c = imaplib_connect.open_connection(config = config, verbose = verbose)
     a = addressbook.AddressBook(config = config)
-    sync = IMessageSync(c,a,verbose=verbose)
+    sync = IMessageSync(c,a,verbose=verbose,sync_time=sync_time)
     guids_to_skip = sync.fetch_all_guids_since( \
         min(map(lambda ix: ix['date'], x.values())))
 

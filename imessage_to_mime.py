@@ -173,7 +173,7 @@ def is_valid(message):
         (message['is_from_me']==True or message.get('handle') is not None or message.get('other_handle') is not None) and \
         (message['text'] is not None or len(message['attachments'])>0))
 
-def set_headers(outer, message, addressbook, in_reply_to):
+def set_headers(outer, message, addressbook, in_reply_to, sync_time=None):
     outer['Subject']    = email.header.Header(get_subject(message, addressbook))
     outer['To']         = get_to(message, addressbook)
     outer['From']       = get_from(message, addressbook)
@@ -204,12 +204,15 @@ def set_headers(outer, message, addressbook, in_reply_to):
         outer[Xheader('from-contact')]   = message['handle']['contact']
 #        outer[Xheader('handle-country')] = message['handle']['country']
 #        outer[Xheader('handle-service')] = message['handle']['service']
+    if(sync_time):
+        outer[Xheader('upload-date')]    = \
+            email.utils.formatdate(sync_time)
 
-def get_email(message, addressbook, in_reply_to = dict(), max_attachment_size = None):
+def get_email(message, addressbook, in_reply_to = dict(), max_attachment_size = None, sync_time = None):
     if(message['attachments']):
         emails = []
         outer = email.mime.multipart.MIMEMultipart()
-        set_headers(outer, message, addressbook, in_reply_to)
+        set_headers(outer, message, addressbook, in_reply_to, sync_time)
         outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
         outer.attach(get_text_msg(message))
         attachments = []
@@ -232,7 +235,7 @@ def get_email(message, addressbook, in_reply_to = dict(), max_attachment_size = 
                     new_message['guid'] = \
                         message['guid'] + '-FRAGMENT-' + str(len(emails))
                     outer = email.mime.multipart.MIMEMultipart()
-                    set_headers(outer, new_message, addressbook, in_reply_to)
+                    set_headers(outer, new_message, addressbook, in_reply_to, sync_time)
                     outer.preamble = 'You will not see this in a MIME-aware email reader.\n'
                     total_asize = 0
                 outer.attach(a)
@@ -249,7 +252,7 @@ def get_email(message, addressbook, in_reply_to = dict(), max_attachment_size = 
             return outer
     else:
         outer = get_text_msg(message)
-        set_headers(outer, message, addressbook, in_reply_to)
+        set_headers(outer, message, addressbook, in_reply_to, sync_time)
     return outer
 
 def update_chat_thread_ids(message, addressbook, in_reply_to):
