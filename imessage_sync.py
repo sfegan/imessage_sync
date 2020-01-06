@@ -29,8 +29,10 @@ import file_finder
 import addressbook
 import re
 import time
+import calendar
 import os
 import os.path
+import email.utils
 
 class IMessageSync:
     def __init__(self, connection, addressbook, config=None, verbose=False, sync_time=time.time()):
@@ -139,6 +141,34 @@ class IMessageSync:
             print('.',end='',flush=True)
         print('',flush=True)
         return guids
+
+    def fetch_internal_dates(self, start_index=-100, end_index=0):
+        if(start_index < 0):
+            start_index += self.mailbox_size
+            end_index += self.mailbox_size
+        elif(start_index < 0):
+            end_index += self.mailbox_size
+        start_index = min(max(start_index, 0), self.mailbox_size)
+        end_index = min(max(end_index, 0), self.mailbox_size)
+        if(start_index > end_index):
+            raise Exception("start_index must be smaller than end_index")
+        qrange = '%d:%d'%(start_index,end_index)
+        qfilter = 'INTERNALDATE'
+        resp, data = self.connection.fetch(qrange, qfilter)
+        if(resp != 'OK'):
+            print(resp, data[0].decode())
+            return None
+        internal_dates = []
+        for line in data:
+            date = re.match(r'^.*\s+\(INTERNALDATE "(.*)"\)$',line.decode())
+            if(date):
+                internal_dates.append(
+                    time.mktime(email.utils.parsedate(date.groups()[0])))
+        return internal_dates
+
+    def guess_last_sync_time(self):
+        message_dates = self.fetch_internal_dates()
+        return max(message_dates) if message_dates else 0
 
     def message_summary(self, message, before_gid = None):
         address = 'unknown'
