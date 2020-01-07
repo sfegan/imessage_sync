@@ -163,7 +163,7 @@ class IMessageSync:
             date = re.match(r'^.*\s+\(INTERNALDATE "(.*)"\)$',line.decode())
             if(date):
                 internal_dates.append(
-                    time.mktime(email.utils.parsedate(date.groups()[0])))
+                    calendar.timegm(email.utils.parsedate(date.groups()[0])))
         return internal_dates
 
     def guess_last_sync_time(self):
@@ -307,6 +307,17 @@ def sync_all_messages(finder_or_base_path = None, verbose = True,
     config = imessage_sync_config.get_config()
     sync_time = time.time()
     x = get_all_messages(finder_or_base_path = finder_or_base_path)
+    sync = None
+    if(start_date == "latest"):
+        c = imaplib_connect.open_connection(config = config, verbose = verbose)
+        a = addressbook.AddressBook(config = config)
+        sync = IMessageSync(c,a,verbose=verbose,sync_time=sync_time)
+        if(verbose):
+            print("Querying time of latest messages")
+        start_date = sync.guess_last_sync_time()
+        print("Guessed latest message time of :",
+            time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(start_date)))
+        start_date -= 3600
     if(start_date):
         xx = dict()
         for ix in filter(lambda ix: x[ix]['date']>=start_date, x):
@@ -321,9 +332,10 @@ def sync_all_messages(finder_or_base_path = None, verbose = True,
         print('Found no messages in iMessages database(s), exiting')
         return
     print('Found %d messages in iMessages database(s)'%len(x))
-    c = imaplib_connect.open_connection(config = config, verbose = verbose)
-    a = addressbook.AddressBook(config = config)
-    sync = IMessageSync(c,a,verbose=verbose,sync_time=sync_time)
+    if(sync == None):
+        c = imaplib_connect.open_connection(config = config, verbose = verbose)
+        a = addressbook.AddressBook(config = config)
+        sync = IMessageSync(c,a,verbose=verbose,sync_time=sync_time)
     guids_to_skip = sync.fetch_all_guids_since( \
         min(map(lambda ix: ix['date'], x.values())))
 

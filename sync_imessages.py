@@ -19,7 +19,9 @@ parser.add_argument('--db', dest='db', action='append', default=None,
 args = parser.parse_args()
 
 start_date = None
-if(args.start_date is not None):
+if(args.start_date == "latest"):
+    start_date = args.start_date
+elif(args.start_date is not None):
     start_date = datetime.datetime.strptime(args.start_date,'%Y-%m-%d')
     start_date = start_date and start_date.timestamp()
 
